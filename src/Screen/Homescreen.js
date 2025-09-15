@@ -14,13 +14,13 @@ import Icon from 'react-native-vector-icons/Feather';
 const Homescreen = ({navigation}) => {
   const handleImageInput = () => {
     console.log('Image input pressed');
-      navigation.navigate('Textinput');
+      navigation.navigate('Imageinput');
     
    };
 
   const handleTextInput = () => {
     console.log('Text input pressed');
-            navigation.navigate('Textinput');
+            navigation.navigate('Imageinput');
 
   };
 
