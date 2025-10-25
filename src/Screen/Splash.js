@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,27 @@ import {
 
 const { width, height } = Dimensions.get('window');
 
+const LotusIcon = () => (
+  <View style={styles.lotusContainer}>
+    <View style={styles.lotus}>
+      {/* Petals */}
+      <View style={[styles.petal, styles.petal1]} />
+      <View style={[styles.petal, styles.petal2]} />
+      <View style={[styles.petal, styles.petal3]} />
+      <View style={[styles.petal, styles.petal4]} />
+      <View style={[styles.petal, styles.petal5]} />
+      <View style={[styles.petal, styles.petal6]} />
+      <View style={[styles.petal, styles.petal7]} />
+      <View style={[styles.petal, styles.petal8]} />
+      {/* Center */}
+      <View style={styles.center} />
+    </View>
+  </View>
+);
+
 const Splash = ({ navigation }) => {
-  const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.8);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
     // Animation sequence
@@ -31,11 +49,14 @@ const Splash = ({ navigation }) => {
 
     // Auto-hide splash screen after 3 seconds
     const timer = setTimeout(() => {
-      navigation.navigate('Home')
+      navigation.navigate('Login');
     }, 3000);
 
     return () => clearTimeout(timer);
-  }, []);
+    // navigation is stable from react-navigation, include it to satisfy exhaustive-deps
+    // fadeAnim and scaleAnim are refs and don't need to be included
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navigation]);
 
   // Lotus/Flower Icon Component
   const LotusIcon = () => (

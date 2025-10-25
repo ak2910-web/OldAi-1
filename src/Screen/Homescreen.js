@@ -54,7 +54,7 @@ const Homescreen = ({navigation}) => {
               <Text style={styles.welcomeText}>Welcome to VedAI</Text>
               <Text style={styles.subtitleText}>Explore ancient wisdom through AI</Text>
             </View>
-            <TouchableOpacity style={styles.profileIcon} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.profileIcon} activeOpacity={0.7} onPress={() => navigation.navigate('Profile')}>
               <Icon name="user" size={24} color="white" />
             </TouchableOpacity>
           </View>

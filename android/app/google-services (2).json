@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "215577452779",
+    "project_id": "react-native-oldai",
+    "storage_bucket": "react-native-oldai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:215577452779:android:1ce49042eca11046165eae",
+        "android_client_info": {
+          "package_name": "com.oldai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "215577452779-jp0nopi2r77b2vlurssb56njn57dd2nc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.oldai",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "215577452779-s4ljb43bjj3430ebh9iepic9evf91h14.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD86IEv6BSnq0VKyX6wOg4zL7QQAfUOno8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "215577452779-s4ljb43bjj3430ebh9iepic9evf91h14.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
