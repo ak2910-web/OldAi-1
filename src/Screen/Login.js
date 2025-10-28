@@ -15,6 +15,7 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import auth from '@react-native-firebase/auth';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
 const Login = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -94,6 +95,65 @@ const Login = ({ navigation }) => {
   const handleSignUp = () => {
     // Navigate to sign up screen
     navigation.navigate('Signup');
+  };
+
+  // Configure Google Signin
+  React.useEffect(() => {
+    // Web client ID from google-services.json (OAuth client type 3)
+    GoogleSignin.configure({
+      webClientId: '215577452779-s4ljb43bjj3430ebh9iepic9evf91h14.apps.googleusercontent.com',
+      offlineAccess: true,
+      forceCodeForRefreshToken: true,
+    });
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setLoading(true);
+      // First, sign out to ensure clean state
+      await GoogleSignin.signOut();
+      
+      // Check Play Services
+      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      
+      // Attempt sign in
+      const { idToken } = await GoogleSignin.signIn();
+      
+      if (!idToken) {
+        throw new Error('No ID token received from Google Sign-In');
+      }
+
+      // Create a Google credential with the token
+      const googleCredential = auth.GoogleAuthProvider.credential(idToken);
+      
+      // Sign-in the user with the credential
+      await auth().signInWithCredential(googleCredential);
+      navigation.replace('Home');
+    } catch (error) {
+      console.error('Google sign-in error:', error);
+      let errorMessage = 'Unable to sign in with Google';
+      
+      if (error?.code) {
+        switch (error.code) {
+          case 'SIGN_IN_CANCELLED':
+            errorMessage = 'Sign in was cancelled';
+            break;
+          case 'SIGN_IN_REQUIRED':
+            errorMessage = 'Sign in is required';
+            break;
+          case 'PLAY_SERVICES_NOT_AVAILABLE':
+            errorMessage = 'Google Play Services is not available';
+            break;
+          default:
+            errorMessage = error.message || 'An unexpected error occurred';
+            break;
+        }
+      }
+      
+      Alert.alert('Google Sign-In Error', errorMessage);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -189,6 +249,16 @@ const Login = ({ navigation }) => {
             <Text style={styles.signupButton}>Sign Up</Text>
           </TouchableOpacity>
         </View>
+        
+        {/* Google Sign-In */}
+        <TouchableOpacity
+          style={styles.googleButton}
+          onPress={handleGoogleSignIn}
+          disabled={loading}
+        >
+          <Icon name="google" size={20} color="#DB4437" style={{ marginRight: 10 }} />
+          <Text style={styles.googleButtonText}>Continue with Google</Text>
+        </TouchableOpacity>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -308,6 +378,28 @@ const styles = StyleSheet.create({
   },
   loginButtonDisabled: {
     opacity: 0.7,
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'white',
+    borderRadius: 12,
+    height: 56,
+    marginTop: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  googleButtonText: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '600',
   },
 });
 
