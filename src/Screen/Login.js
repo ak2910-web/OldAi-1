@@ -24,6 +24,29 @@ const Login = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  
+  // Check and handle existing sign-in
+  React.useEffect(() => {
+    const checkSignInStatus = async () => {
+      try {
+        // Check if user is signed in with Firebase
+        const currentUser = auth().currentUser;
+        if (currentUser) {
+          await auth().signOut();
+        }
+        
+        // Check if user is signed in with Google
+        const isSignedIn = await GoogleSignin.isSignedIn();
+        if (isSignedIn) {
+          await GoogleSignin.signOut();
+        }
+      } catch (error) {
+        console.error('Error checking sign-in status:', error);
+      }
+    };
+    
+    checkSignInStatus();
+  }, []);
 
   // Email validation
   const validateEmail = (email) => {
@@ -110,14 +133,30 @@ const Login = ({ navigation }) => {
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
-      // First, sign out to ensure clean state
-      await GoogleSignin.signOut();
       
-      // Check Play Services
+      // Check Play Services first
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
       
-      // Attempt sign in
-      const { idToken } = await GoogleSignin.signIn();
+      // Make sure we're signed out before attempting sign in
+      const isSignedIn = await GoogleSignin.isSignedIn();
+      if (isSignedIn) {
+        await GoogleSignin.signOut();
+        // Small delay to ensure sign out is complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Clear any existing Firebase auth state
+      const currentUser = auth().currentUser;
+      if (currentUser) {
+        await auth().signOut();
+        // Small delay to ensure sign out is complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      // Now attempt sign in
+      console.log('Starting Google Sign In...');
+      const { idToken, user } = await GoogleSignin.signIn();
+      console.log('Google Sign In successful:', user?.email);
       
       if (!idToken) {
         throw new Error('No ID token received from Google Sign-In');
@@ -127,11 +166,22 @@ const Login = ({ navigation }) => {
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
       
       // Sign-in the user with the credential
-      await auth().signInWithCredential(googleCredential);
+      console.log('Signing in to Firebase with credential...');
+      const userCredential = await auth().signInWithCredential(googleCredential);
+      console.log('Firebase Sign In successful:', userCredential.user.email);
+      
       navigation.replace('Home');
     } catch (error) {
-      console.error('Google sign-in error:', error);
+            console.error('Google sign-in error:', error);
       let errorMessage = 'Unable to sign in with Google';
+      
+      // More detailed error logging
+      if (error?.code) {
+        console.log('Error code:', error.code);
+      }
+      if (error?.message) {
+        console.log('Error message:', error.message);
+      }
       
       if (error?.code) {
         switch (error.code) {
@@ -144,13 +194,33 @@ const Login = ({ navigation }) => {
           case 'PLAY_SERVICES_NOT_AVAILABLE':
             errorMessage = 'Google Play Services is not available';
             break;
+          case '12501': // This is a common Google Sign-In error code
+            errorMessage = 'Sign in was cancelled by user';
+            break;
+          case 'auth/invalid-credential':
+            errorMessage = 'The credential is invalid. Please try again.';
+            break;
           default:
             errorMessage = error.message || 'An unexpected error occurred';
             break;
         }
       }
       
-      Alert.alert('Google Sign-In Error', errorMessage);
+      Alert.alert(
+        'Google Sign-In Error',
+        errorMessage,
+        [
+          {
+            text: 'Try Again',
+            onPress: () => {
+              // Clean up state before retrying
+              GoogleSignin.signOut().catch(() => {});
+              auth().signOut().catch(() => {});
+            }
+          },
+          { text: 'OK' }
+        ]
+      );
     } finally {
       setLoading(false);
     }

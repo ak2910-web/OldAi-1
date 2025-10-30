@@ -26,6 +26,29 @@ const Signup = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
+  // Check and handle existing sign-in
+  React.useEffect(() => {
+    const checkSignInStatus = async () => {
+      try {
+        // Check if user is signed in with Firebase
+        const currentUser = auth().currentUser;
+        if (currentUser) {
+          await auth().signOut();
+        }
+        
+        // Check if user is signed in with Google
+        const isSignedIn = await GoogleSignin.isSignedIn();
+        if (isSignedIn) {
+          await GoogleSignin.signOut();
+        }
+      } catch (error) {
+        console.error('Error checking sign-in status:', error);
+      }
+    };
+    
+    checkSignInStatus();
+  }, []);
+
   const validate = () => {
     const newErrors = {};
 
