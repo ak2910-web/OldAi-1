@@ -8,14 +8,18 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+// LinearGradient removed — header uses simple View
 import Icon from 'react-native-vector-icons/Feather';
 import auth from '@react-native-firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const Profile = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   useEffect(() => {
     const currentUser = auth().currentUser;
@@ -26,6 +30,17 @@ const Profile = ({ navigation }) => {
         photoURL: currentUser.photoURL || null,
       });
     }
+    // load persisted theme
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem('@vedai:darkMode');
+        if (stored !== null) setDarkMode(stored === 'true');
+        const notif = await AsyncStorage.getItem('@vedai:notifications');
+        if (notif !== null) setNotificationsEnabled(notif === 'true');
+      } catch (e) {
+        // ignore
+      }
+    })();
     setLoading(false);
   }, []);
 
@@ -39,8 +54,21 @@ const Profile = ({ navigation }) => {
   };
 
   const handleEditProfile = () => {
-    // TODO: Implement edit profile functionality
-    Alert.alert('Coming Soon', 'Profile editing will be available soon!');
+    navigation.navigate('ProfileEdit');
+  };
+
+  const toggleDarkMode = async (value) => {
+    setDarkMode(value);
+    try {
+      await AsyncStorage.setItem('@vedai:darkMode', value ? 'true' : 'false');
+    } catch (e) {}
+  };
+
+  const toggleNotifications = async (value) => {
+    setNotificationsEnabled(value);
+    try {
+      await AsyncStorage.setItem('@vedai:notifications', value ? 'true' : 'false');
+    } catch (e) {}
   };
 
   if (loading) {
@@ -51,83 +79,102 @@ const Profile = ({ navigation }) => {
     );
   }
 
+  // theme colors
+  const theme = darkMode
+    ? {
+        background: '#0F172A',
+        card: '#111827',
+        text: '#E5E7EB',
+        subtext: '#9CA3AF',
+        accent: '#FFB84D',
+        surface: '#0B1220',
+      }
+    : {
+        background: '#F5F5DC',
+        card: '#FFFFFF',
+        text: '#111827',
+        subtext: '#6B7280',
+        accent: '#F59E0B',
+        surface: '#FFFFFF',
+      };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={['#FF9500', '#FFD700']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}> 
+      {/* Use native navigator header — remove in-screen back button/title to avoid duplicates */}
+      <View style={[styles.header, { backgroundColor: theme.surface }]}> 
         <View style={styles.headerContent}>
-          <TouchableOpacity 
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Icon name="arrow-left" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Profile</Text>
           <View style={styles.placeholder} />
         </View>
-      </LinearGradient>
+      </View>
 
       <View style={styles.profileContent}>
         <View style={styles.avatarContainer}>
           {user?.photoURL ? (
-            <Image
-              source={{ uri: user.photoURL }}
-              style={styles.avatar}
-            />
+            <Image source={{ uri: user.photoURL }} style={styles.avatar} />
           ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Icon name="user" size={40} color="#6B7280" />
+            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.card }]}> 
+              <Icon name="user" size={40} color={theme.subtext} />
             </View>
           )}
-          <TouchableOpacity
-            style={styles.editAvatarButton}
-            onPress={handleEditProfile}
-          >
+          <TouchableOpacity style={[styles.editAvatarButton, { backgroundColor: theme.accent }]} onPress={handleEditProfile}>
             <Icon name="edit-2" size={16} color="white" />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.displayName}>{user?.displayName}</Text>
-        <Text style={styles.email}>{user?.email}</Text>
+        <Text style={[styles.displayName, { color: theme.text }]}>{user?.displayName}</Text>
+        <Text style={[styles.roleText, { color: theme.subtext }]}>Vedic Scholar</Text>
 
-        <View style={styles.infoContainer}>
-          <View style={styles.infoItem}>
-            <Icon name="book" size={20} color="#6B7280" />
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Total Queries</Text>
-              <Text style={styles.infoValue}>0</Text>
+        <TouchableOpacity style={[styles.mainEditButton, { backgroundColor: theme.accent }]} onPress={handleEditProfile}>
+          <Text style={styles.mainEditButtonText}>Edit Profile</Text>
+        </TouchableOpacity>
+
+        <View style={[styles.card, { backgroundColor: theme.card }]}> 
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Account</Text>
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.subtext }]}>Email</Text>
+            <View style={styles.rowRight}>
+              <Text style={[styles.value, { color: theme.text }]}>{user?.email}</Text>
+              <TouchableOpacity>
+                <Text style={[styles.changeText, { color: theme.accent }]}>Change</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.infoItem}>
-            <Icon name="calendar" size={20} color="#6B7280" />
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Member Since</Text>
-              <Text style={styles.infoValue}>
-                {new Date().toLocaleDateString()}
-              </Text>
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.subtext }]}>Phone</Text>
+            <View style={styles.rowRight}>
+              <Text style={[styles.value, { color: theme.text }]}>+91 98765 43210</Text>
+              <TouchableOpacity>
+                <Text style={[styles.changeText, { color: theme.accent }]}>Change</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: theme.subtext }]}>Password</Text>
+            <View style={styles.rowRight}>
+              <Text style={[styles.value, { color: theme.text }]}>••••••••</Text>
+              <TouchableOpacity>
+                <Text style={[styles.changeText, { color: theme.accent }]}>Change</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.editProfileButton}
-          onPress={handleEditProfile}
-        >
-          <Icon name="edit" size={20} color="#1E3A8A" />
-          <Text style={styles.editProfileText}>Edit Profile</Text>
-        </TouchableOpacity>
+        <View style={[styles.card, { backgroundColor: theme.card }]}> 
+          <Text style={[styles.cardTitle, { color: theme.text }]}>Settings</Text>
+          <View style={styles.settingRow}>
+            <Text style={[styles.settingLabel, { color: theme.text }]}>Notifications</Text>
+            <Switch value={notificationsEnabled} onValueChange={toggleNotifications} thumbColor={notificationsEnabled ? theme.accent : '#fff'} />
+          </View>
+          <View style={styles.settingRow}>
+            <Text style={[styles.settingLabel, { color: theme.text }]}>Dark Mode</Text>
+            <Switch value={darkMode} onValueChange={toggleDarkMode} thumbColor={darkMode ? '#111' : '#fff'} trackColor={{ true: '#9CA3AF', false: '#E5E7EB' }} />
+          </View>
+        </View>
 
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Icon name="log-out" size={20} color="white" />
-          <Text style={styles.logoutText}>Logout</Text>
+        <TouchableOpacity style={[styles.logoutButtonFull, { backgroundColor: '#fff', borderColor: '#F87171', borderWidth: 1 }]} onPress={handleLogout}>
+          <Text style={[styles.logoutTextFull, { color: '#F87171' }]}>Logout</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -207,10 +254,10 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 4,
   },
-  email: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginBottom: 24,
+  roleText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginBottom: 16,
   },
   infoContainer: {
     width: '100%',
@@ -266,6 +313,76 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: 'white',
+  },
+  mainEditButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  mainEditButtonText: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  card: {
+    width: '100%',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 20,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  label: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  value: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginRight: 12,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  changeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F59E0B',
+    marginLeft: 8,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  logoutButtonFull: {
+    marginTop: 24,
+    width: '90%',
+    alignSelf: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  logoutTextFull: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

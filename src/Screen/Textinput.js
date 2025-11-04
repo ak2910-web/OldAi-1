@@ -7,20 +7,16 @@ import {
   ScrollView,
   StyleSheet,
   SafeAreaView,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { getResonance } from '../api/api';
 
 const Textinput = ({navigation}) => {
-  const [selectedInput, setSelectedInput] = useState('text');
   const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
-
-
-
-  const handlePress = () => {
-   setSelectedInput('image');
-    navigation.navigate("Imageinput"); // 👈 your target screen name
-  };
 
 
   const examples = [
@@ -37,13 +33,50 @@ const Textinput = ({navigation}) => {
     'For images, ensure clear visibility of formulas',
   ];
 
+  const handleGenerate = async () => {
+    const prompt = (query || '').trim();
+    if (!prompt) {
+      Alert.alert('Error', 'Please enter a question first');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const result = await getResonance(prompt);
+      if (result) {
+        navigation.navigate('Output', { 
+          result: result,
+          prompt: prompt,
+          model: 'Gemini Pro'
+        });
+      } else {
+        throw new Error('No response received from the server');
+      }
+    } catch (error) {
+      console.error("Error generating response:", error);
+      let errorMessage = error.message;
+      
+      if (errorMessage.includes('Network request failed')) {
+        errorMessage = 'Cannot connect to the server. Please make sure:\n\n' +
+          '1. You have an internet connection\n' +
+          '2. The Firebase emulator is running\n' +
+          '3. Try restarting the app';
+      }
+      
+      Alert.alert(
+        "Error",
+        errorMessage || "Failed to generate response. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Input Your Query</Text>
           <Text style={styles.headerSubtitle}>Ask about Vedic mathematics</Text>
@@ -51,54 +84,14 @@ const Textinput = ({navigation}) => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Input Type Selection */}
+        {/* Input Type (text only) + separator */}
         <View style={styles.inputTypeContainer}>
-          <TouchableOpacity
-            style={[
-              styles.inputTypeButton,
-              styles.textInputButton,
-              selectedInput === 'text' && styles.selectedInputType,
-            ]}
-            onPress={() => setSelectedInput('text')}
-          >
-            <Ionicons
-              name="chatbubble-outline"
-              size={20}
-              color={selectedInput === 'text' ? '#fff' : '#666'}
-            />
-            <Text
-              style={[
-                styles.inputTypeText,
-                selectedInput === 'text' && styles.selectedInputTypeText,
-              ]}
-            >
-              Text Input
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.inputTypeButton,
-              styles.imageInputButton,
-              selectedInput === 'image' && styles.selectedInputType,
-            ]}
-            onPress={handlePress}
-          >
-            <Ionicons
-              name="image-outline"
-              size={20}
-              color={selectedInput === 'image' ? '#fff' : '#666'}
-            />
-            <Text
-              style={[
-                styles.inputTypeText,
-                selectedInput === 'image' && styles.selectedInputTypeText,
-              ]}
-            >
-              Image Input
-            </Text>
-          </TouchableOpacity>
+          <View style={[styles.inputTypeButton, styles.textInputButton, styles.selectedInputType]}>
+            <Ionicons name="chatbubble-outline" size={20} color={'#fff'} />
+            <Text style={[styles.inputTypeText, styles.selectedInputTypeText]}>Text Input</Text>
+          </View>
         </View>
+        <View style={styles.separator} />
 
         {/* Language Selection */}
         <View style={styles.languageContainer}>
@@ -138,9 +131,19 @@ const Textinput = ({navigation}) => {
         </View>
 
         {/* Generate Button */}
-        <TouchableOpacity style={styles.generateButton}>
-          <Ionicons name="sparkles" size={20} color="#fff" style={styles.generateIcon} />
-          <Text style={styles.generateText}>Generate Explanation</Text>
+        <TouchableOpacity 
+          style={[styles.generateButton, loading && styles.generateButtonDisabled]} 
+          onPress={handleGenerate}
+          disabled={loading || !query.trim()}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="sparkles" size={20} color="#fff" style={styles.generateIcon} />
+              <Text style={styles.generateText}>Generate Explanation</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         {/* Tips Section */}
@@ -264,6 +267,12 @@ const styles = StyleSheet.create({
   examplesContainer: {
     marginTop: 20,
   },
+  separator: {
+    height: 1,
+    backgroundColor: '#E5E5E5',
+    marginVertical: 16,
+    borderRadius: 1,
+  },
   examplesTitle: {
     fontSize: 16,
     color: '#666',
@@ -298,6 +307,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  generateButtonDisabled: {
+    backgroundColor: '#D1D5DB',
   },
   tipsContainer: {
     marginTop: 20,

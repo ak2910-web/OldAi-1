@@ -10,28 +10,51 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
+import { getResonance, getTextFromImage } from "../api/api";
+
 
 const Homescreen = ({navigation}) => {
-  const handleImageInput = () => {
+  const handleImageInput = async () => {
     console.log('Image input pressed');
+    try {
+      // First navigate to ImageInput screen where user can select/capture image
       navigation.navigate('Imageinput');
-    
-   };
+      
+      // NOTE: The actual image processing should happen in Imageinput screen
+      // because we need to let user select/capture the image first
+      // The base64 processing code below should move to Imageinput.js:
+      
+      /* Example flow for Imageinput.js:
+      const base64Data = // ... from image picker/camera
+      const text = await getTextFromImage(base64Data, "image/png");
+      // Navigate to results with extracted text
+      navigation.navigate('Output', { results: text });
+      */
+    } catch (error) {
+      console.error("Error in handleImageInput:", error);
+      // Show error alert to user
+      Alert.alert(
+        "Error",
+        "Failed to process image. Please try again.",
+        [{ text: "OK" }]
+      );
+    }
+  };
 
   const handleTextInput = () => {
     console.log('Text input pressed');
-            navigation.navigate('Imageinput');
-
+    navigation.navigate('Textinput');
   };
+
 
   const handleHowItWorks = () => {
     console.log('How it works pressed');
-    // Navigate to how it works screen
+    navigation.navigate('HowItWorks');
   };
 
   const handleAboutVedAI = () => {
     console.log('About VedAI pressed');
-    // Navigate to about screen
+    navigation.navigate('About');
   };
 
   return (

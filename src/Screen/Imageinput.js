@@ -8,18 +8,18 @@ import {
   StyleSheet,
   SafeAreaView,
   Alert,
-  Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
+import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import { extractText, getResonance } from '../api/api';
 import Ionicons from 'react-native-vector-icons/Ionicons';
-import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 
-const Imageinput = () => {
-  const [selectedInput, setSelectedInput] = useState('text');
+const Imageinput = ({ navigation }) => {
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedLanguage, setSelectedLanguage] = useState('English');
-  const [showImageOptions, setShowImageOptions] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
 
   const examples = [
     'How to find square of 45 using Vedic method?',
@@ -35,61 +35,56 @@ const Imageinput = () => {
     'For images, ensure clear visibility of formulas',
   ];
 
-  const openCamera = () => {
-    const options = {
-      mediaType: 'photo',
-      includeBase64: false,
-      maxHeight: 2000,
-      maxWidth: 2000,
-    };
+  const handleSelectImage = async (type = 'library') => {
+    try {
+      const options = {
+        mediaType: 'photo',
+        includeBase64: true,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        quality: 0.8,
+      };
 
-    launchCamera(options, (response) => {
-      if (response.didCancel || response.error) {
-        return;
-      }
-      if (response.assets && response.assets[0]) {
-        setSelectedImage(response.assets[0]);
-      }
-    });
-    setShowImageOptions(false);
-  };
+      const result = type === 'library' 
+        ? await launchImageLibrary(options)
+        : await launchCamera(options);
 
-  const openGallery = () => {
-    const options = {
-      mediaType: 'photo',
-      includeBase64: false,
-      maxHeight: 2000,
-      maxWidth: 2000,
-    };
-
-    launchImageLibrary(options, (response) => {
-      if (response.didCancel || response.error) {
-        return;
+      if (result.assets?.[0]) {
+        setSelectedImage(result.assets[0]);
+        try {
+          // Process image immediately
+          setLoading(true);
+          const response = await extractText(result.assets[0].base64, result.assets[0].type || "image/png");
+          if (response.error) {
+            throw new Error(response.error);
+          }
+          // Navigate to output with result
+          navigation.navigate('Output', { 
+            result: response.text,
+            prompt: "Image Analysis",
+            model: "Gemini Pro Vision"
+          });
+        } catch (processError) {
+          console.error("Error processing image:", processError);
+          Alert.alert(
+            "Error",
+            processError.message || "Failed to process image. Please try again.",
+            [{ text: "OK" }]
+          );
+        } finally {
+          setLoading(false);
+        }
       }
-      if (response.assets && response.assets[0]) {
-        setSelectedImage(response.assets[0]);
-      }
-    });
-    setShowImageOptions(false);
-  };
-
-  const handleImageInput = () => {
-    if (selectedInput === 'image') {
-      setShowImageOptions(true);
+    } catch (err) {
+      console.error('Error selecting image:', err);
+      Alert.alert('Error', 'Failed to select image. Please try again.');
     }
-  };
-
-  const removeImage = () => {
-    setSelectedImage(null);
   };
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Input Your Query</Text>
           <Text style={styles.headerSubtitle}>Ask about Vedic mathematics</Text>
@@ -97,54 +92,14 @@ const Imageinput = () => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Input Type Selection */}
+        {/* Input Type (text only) + separator where image input used to be */}
         <View style={styles.inputTypeContainer}>
-          <TouchableOpacity
-            style={[
-              styles.inputTypeButton,
-              styles.textInputButton,
-              selectedInput === 'text' && styles.selectedInputType,
-            ]}
-            onPress={() => setSelectedInput('text')}
-          >
-            <Ionicons
-              name="chatbubble-outline"
-              size={20}
-              color={selectedInput === 'text' ? '#fff' : '#666'}
-            />
-            <Text
-              style={[
-                styles.inputTypeText,
-                selectedInput === 'text' && styles.selectedInputTypeText,
-              ]}
-            >
-              Text Input
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.inputTypeButton,
-              styles.imageInputButton,
-              selectedInput === 'image' && styles.selectedInputType,
-            ]}
-            onPress={() => setSelectedInput('image')}
-          >
-            <Ionicons
-              name="image-outline"
-              size={20}
-              color={selectedInput === 'image' ? '#fff' : '#666'}
-            />
-            <Text
-              style={[
-                styles.inputTypeText,
-                selectedInput === 'image' && styles.selectedInputTypeText,
-              ]}
-            >
-              Image Input
-            </Text>
-          </TouchableOpacity>
+          <View style={[styles.inputTypeButton, styles.textInputButton, styles.selectedInputType]}>
+            <Ionicons name="chatbubble-outline" size={20} color={'#fff'} />
+            <Text style={[styles.inputTypeText, styles.selectedInputTypeText]}>Text Input</Text>
+          </View>
         </View>
+        <View style={styles.separator} />
 
         {/* Language Selection */}
         <View style={styles.languageContainer}>
@@ -155,50 +110,22 @@ const Imageinput = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Conditional Input based on selection */}
-        {selectedInput === 'text' ? (
-          <View style={styles.queryContainer}>
-            <Text style={styles.sectionLabel}>Your Question</Text>
-            <TextInput
-              style={styles.queryInput}
-              placeholder="Ask about Vedic mathematics methods, sutras, or techniques..."
-              placeholderTextColor="#999"
-              multiline
-              value={query}
-              onChangeText={setQuery}
-              textAlignVertical="top"
-            />
-          </View>
-        ) : (
-          <View style={styles.imageContainer}>
-            <Text style={styles.sectionLabel}>Upload Image</Text>
-            
-            {selectedImage ? (
-              <View style={styles.selectedImageContainer}>
-                <Image source={{ uri: selectedImage.uri }} style={styles.selectedImage} />
-                <TouchableOpacity style={styles.removeImageButton} onPress={removeImage}>
-                  <Ionicons name="close-circle" size={24} color="#FF6B6B" />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <TouchableOpacity style={styles.imageUploadButton} onPress={handleImageInput}>
-                <Ionicons name="camera-outline" size={40} color="#666" />
-                <Text style={styles.imageUploadText}>Tap to add image</Text>
-                <Text style={styles.imageUploadSubtext}>Camera or Gallery</Text>
-              </TouchableOpacity>
-            )}
-            
-            {selectedImage && (
-              <TouchableOpacity style={styles.changeImageButton} onPress={handleImageInput}>
-                <Ionicons name="refresh-outline" size={20} color="#FF8C42" />
-                <Text style={styles.changeImageText}>Change Image</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+        {/* Text input (always shown) */}
+        <View style={styles.queryContainer}>
+          <Text style={styles.sectionLabel}>Your Question</Text>
+          <TextInput
+            style={styles.queryInput}
+            placeholder="Ask about Vedic mathematics methods, sutras, or techniques..."
+            placeholderTextColor="#999"
+            multiline
+            value={query}
+            onChangeText={setQuery}
+            textAlignVertical="top"
+          />
+        </View>
 
-        {/* Examples Section - only show for text input */}
-        {selectedInput === 'text' && (
+        {/* Examples Section - show by default since we only have text input now */}
+        {(
           <View style={styles.examplesContainer}>
             <Text style={styles.examplesTitle}>Try these examples:</Text>
             {examples.map((example, index) => (
@@ -217,12 +144,52 @@ const Imageinput = () => {
         <TouchableOpacity 
           style={[
             styles.generateButton,
-            (!query && !selectedImage) && styles.generateButtonDisabled
+            (!query && !selectedImage || loading) && styles.generateButtonDisabled
           ]}
-          disabled={!query && !selectedImage}
+          disabled={!query && !selectedImage || loading}
+          onPress={async () => {
+            try {
+              setLoading(true);
+              let result;
+              
+              if (selectedImage?.base64) {
+                // Process image
+                const response = await extractText(selectedImage.base64, selectedImage.type || "image/png");
+                result = response.text;
+              } else if (query) {
+                // Process text query
+                result = await getResonance(query);
+              } else {
+                Alert.alert('Error', 'Please enter a question or select an image');
+                return;
+              }
+              
+              // Navigate to output with result
+              navigation.navigate('Output', { 
+                result,
+                prompt: selectedImage ? "Image Analysis" : query,
+                model: selectedImage ? "Gemini Pro Vision" : "Gemini Pro"
+              });
+            } catch (error) {
+              console.error("Error processing request:", error);
+              Alert.alert(
+                "Error",
+                error.message || "Failed to process request. Please try again.",
+                [{ text: "OK" }]
+              );
+            } finally {
+              setLoading(false);
+            }
+          }}
         >
-          <Ionicons name="sparkles" size={20} color="#fff" style={styles.generateIcon} />
-          <Text style={styles.generateText}>Generate Explanation</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="sparkles" size={20} color="#fff" style={styles.generateIcon} />
+              <Text style={styles.generateText}>Generate Explanation</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         {/* Tips Section */}
@@ -239,39 +206,6 @@ const Imageinput = () => {
           ))}
         </View>
       </ScrollView>
-
-      {/* Image Options Modal */}
-      <Modal
-        visible={showImageOptions}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowImageOptions(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Image</Text>
-            </View>
-            
-            <TouchableOpacity style={styles.modalOption} onPress={openCamera}>
-              <Ionicons name="camera-outline" size={24} color="#333" />
-              <Text style={styles.modalOptionText}>Take Photo</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.modalOption} onPress={openGallery}>
-              <Ionicons name="images-outline" size={24} color="#333" />
-              <Text style={styles.modalOptionText}>Choose from Gallery</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.modalCancelButton} 
-              onPress={() => setShowImageOptions(false)}
-            >
-              <Text style={styles.modalCancelText}>Cancel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 };
@@ -432,6 +366,12 @@ const styles = StyleSheet.create({
   },
   examplesContainer: {
     marginTop: 20,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: '#E5E5E5',
+    marginVertical: 16,
+    borderRadius: 1,
   },
   examplesTitle: {
     fontSize: 16,
