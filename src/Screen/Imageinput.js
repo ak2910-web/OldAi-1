@@ -10,16 +10,23 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { extractText, getResonance } from '../api/api';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import Icon from 'react-native-vector-icons/Feather';
+import { useTheme } from '../context/ThemeContext';
+import LinearGradient from 'react-native-linear-gradient';
+import FooterNavigation from '../components/FooterNavigation';
 
 const Imageinput = ({ navigation }) => {
+  const { colors, isDarkMode } = useTheme();
   const [selectedImage, setSelectedImage] = useState(null);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const [inputMode, setInputMode] = useState('image'); // 'image' or 'text'
+  const [showImageOptions, setShowImageOptions] = useState(false);
 
   const examples = [
     'How to find square of 45 using Vedic method?',
@@ -37,6 +44,8 @@ const Imageinput = ({ navigation }) => {
 
   const handleSelectImage = async (type = 'library') => {
     try {
+      setShowImageOptions(false);
+      
       const options = {
         mediaType: 'photo',
         includeBase64: true,
@@ -51,29 +60,6 @@ const Imageinput = ({ navigation }) => {
 
       if (result.assets?.[0]) {
         setSelectedImage(result.assets[0]);
-        try {
-          // Process image immediately
-          setLoading(true);
-          const response = await extractText(result.assets[0].base64, result.assets[0].type || "image/png");
-          if (response.error) {
-            throw new Error(response.error);
-          }
-          // Navigate to output with result
-          navigation.navigate('Output', { 
-            result: response.text,
-            prompt: "Image Analysis",
-            model: "Gemini Pro Vision"
-          });
-        } catch (processError) {
-          console.error("Error processing image:", processError);
-          Alert.alert(
-            "Error",
-            processError.message || "Failed to process image. Please try again.",
-            [{ text: "OK" }]
-          );
-        } finally {
-          setLoading(false);
-        }
       }
     } catch (err) {
       console.error('Error selecting image:', err);
@@ -81,60 +67,218 @@ const Imageinput = ({ navigation }) => {
     }
   };
 
+  const handleProcessRequest = async () => {
+    try {
+      setLoading(true);
+      let result;
+      
+      if (inputMode === 'image' && selectedImage?.base64) {
+        // Process image
+        const response = await extractText(selectedImage.base64, selectedImage.type || "image/png");
+        result = response.text;
+      } else if (inputMode === 'text' && query) {
+        // Process text query
+        result = await getResonance(query);
+      } else {
+        Alert.alert('Error', inputMode === 'image' ? 'Please select an image' : 'Please enter a question');
+        setLoading(false);
+        return;
+      }
+      
+      // Navigate to output with result
+      navigation.navigate('Output', { 
+        result,
+        prompt: inputMode === 'image' ? "Image Analysis" : query,
+        model: inputMode === 'image' ? "Gemini Pro Vision" : "Gemini Pro"
+      });
+    } catch (error) {
+      console.error("Error processing request:", error);
+      Alert.alert(
+        "Error",
+        error.message || "Failed to process request. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
+          <Icon name="arrow-left" size={24} color={colors.text} />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Input Your Query</Text>
-          <Text style={styles.headerSubtitle}>Ask about Vedic mathematics</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Smart Input</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            {inputMode === 'image' ? 'Analyze Images' : 'Ask Questions'}
+          </Text>
         </View>
+        <View style={styles.placeholder} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Input Type (text only) + separator where image input used to be */}
-        <View style={styles.inputTypeContainer}>
-          <View style={[styles.inputTypeButton, styles.textInputButton, styles.selectedInputType]}>
-            <Ionicons name="chatbubble-outline" size={20} color={'#fff'} />
-            <Text style={[styles.inputTypeText, styles.selectedInputTypeText]}>Text Input</Text>
-          </View>
-        </View>
-        <View style={styles.separator} />
+        {/* Input Mode Toggle */}
+        <View style={styles.modeToggleContainer}>
+          <TouchableOpacity
+            style={[
+              styles.modeButton,
+              { backgroundColor: colors.surface },
+              inputMode === 'image' && styles.modeButtonActive
+            ]}
+            onPress={() => setInputMode('image')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={inputMode === 'image' ? ['#FFD700', '#FF9500'] : ['transparent', 'transparent']}
+              style={styles.modeButtonGradient}
+            >
+              <Icon 
+                name="camera" 
+                size={22} 
+                color={inputMode === 'image' ? '#fff' : colors.textSecondary} 
+              />
+              <Text style={[
+                styles.modeButtonText,
+                { color: inputMode === 'image' ? '#fff' : colors.textSecondary }
+              ]}>
+                Image
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
-        {/* Language Selection */}
-        <View style={styles.languageContainer}>
-          <Text style={styles.sectionLabel}>Language</Text>
-          <TouchableOpacity style={styles.languageSelector}>
-            <Text style={styles.languageText}>{selectedLanguage}</Text>
-            <Ionicons name="chevron-down" size={20} color="#666" />
+          <TouchableOpacity
+            style={[
+              styles.modeButton,
+              { backgroundColor: colors.surface },
+              inputMode === 'text' && styles.modeButtonActive
+            ]}
+            onPress={() => setInputMode('text')}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={inputMode === 'text' ? ['#FFD700', '#FF9500'] : ['transparent', 'transparent']}
+              style={styles.modeButtonGradient}
+            >
+              <Icon 
+                name="edit-3" 
+                size={22} 
+                color={inputMode === 'text' ? '#fff' : colors.textSecondary} 
+              />
+              <Text style={[
+                styles.modeButtonText,
+                { color: inputMode === 'text' ? '#fff' : colors.textSecondary }
+              ]}>
+                Text
+              </Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
 
-        {/* Text input (always shown) */}
-        <View style={styles.queryContainer}>
-          <Text style={styles.sectionLabel}>Your Question</Text>
-          <TextInput
-            style={styles.queryInput}
-            placeholder="Ask about Vedic mathematics methods, sutras, or techniques..."
-            placeholderTextColor="#999"
-            multiline
-            value={query}
-            onChangeText={setQuery}
-            textAlignVertical="top"
-          />
-        </View>
+        {/* Image Input Section */}
+        {inputMode === 'image' && (
+          <View style={styles.imageSection}>
+            {selectedImage ? (
+              <View style={styles.selectedImageContainer}>
+                <Image 
+                  source={{ uri: selectedImage.uri }} 
+                  style={styles.selectedImage}
+                  resizeMode="cover"
+                />
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.6)', 'transparent']}
+                  style={styles.imageOverlay}
+                >
+                  <TouchableOpacity
+                    style={styles.removeImageButton}
+                    onPress={() => setSelectedImage(null)}
+                    activeOpacity={0.8}
+                  >
+                    <Icon name="x" size={20} color="#fff" />
+                  </TouchableOpacity>
+                </LinearGradient>
+                
+                <TouchableOpacity
+                  style={[styles.changeImageButton, { backgroundColor: colors.surface }]}
+                  onPress={() => setShowImageOptions(true)}
+                  activeOpacity={0.8}
+                >
+                  <Icon name="refresh-cw" size={18} color="#FF9500" />
+                  <Text style={styles.changeImageText}>Change Image</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.imageUploadArea, { backgroundColor: colors.surface }]}
+                onPress={() => setShowImageOptions(true)}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={isDarkMode ? ['#374151', '#1F2937'] : ['#FFF8E7', '#FFE4B5']}
+                  style={styles.imageUploadGradient}
+                >
+                  <View style={styles.uploadIconContainer}>
+                    <Icon name="image" size={48} color="#FF9500" opacity={0.8} />
+                  </View>
+                  <Text style={[styles.imageUploadTitle, { color: colors.text }]}>
+                    Upload or Capture Image
+                  </Text>
+                  <Text style={[styles.imageUploadSubtext, { color: colors.textSecondary }]}>
+                    Take a photo or choose from gallery
+                  </Text>
+                  <View style={styles.uploadHintContainer}>
+                    <Icon name="info" size={14} color={colors.primary} />
+                    <Text style={[styles.uploadHint, { color: colors.textSecondary }]}>
+                      Works with formulas, diagrams & handwritten math
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
-        {/* Examples Section - show by default since we only have text input now */}
-        {(
+        {/* Text Input Section */}
+        {inputMode === 'text' && (
+          <View style={[styles.textSection, { backgroundColor: colors.surface }]}>
+            <View style={styles.textInputHeader}>
+              <Icon name="edit-3" size={20} color="#FF9500" />
+              <Text style={[styles.textInputLabel, { color: colors.text }]}>Your Question</Text>
+            </View>
+            <TextInput
+              style={[styles.queryInput, { color: colors.text }]}
+              placeholder="Ask about Vedic mathematics methods, sutras, or techniques..."
+              placeholderTextColor={colors.textSecondary}
+              multiline
+              value={query}
+              onChangeText={setQuery}
+              textAlignVertical="top"
+            />
+          </View>
+        )}
+
+        {/* Examples Section (only for text mode) */}
+        {inputMode === 'text' && (
           <View style={styles.examplesContainer}>
-            <Text style={styles.examplesTitle}>Try these examples:</Text>
+            <View style={styles.examplesHeader}>
+              <Icon name="zap" size={18} color="#FF9500" />
+              <Text style={[styles.examplesTitle, { color: colors.text }]}>Quick Examples</Text>
+            </View>
             {examples.map((example, index) => (
               <TouchableOpacity
                 key={index}
-                style={styles.exampleButton}
+                style={[styles.exampleChip, { backgroundColor: colors.surface }]}
                 onPress={() => setQuery(example)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.exampleText}>{example}</Text>
+                <Text style={[styles.exampleText, { color: colors.textSecondary }]}>{example}</Text>
+                <Icon name="chevron-right" size={16} color={colors.textSecondary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -147,65 +291,111 @@ const Imageinput = ({ navigation }) => {
             (!query && !selectedImage || loading) && styles.generateButtonDisabled
           ]}
           disabled={!query && !selectedImage || loading}
-          onPress={async () => {
-            try {
-              setLoading(true);
-              let result;
-              
-              if (selectedImage?.base64) {
-                // Process image
-                const response = await extractText(selectedImage.base64, selectedImage.type || "image/png");
-                result = response.text;
-              } else if (query) {
-                // Process text query
-                result = await getResonance(query);
-              } else {
-                Alert.alert('Error', 'Please enter a question or select an image');
-                return;
-              }
-              
-              // Navigate to output with result
-              navigation.navigate('Output', { 
-                result,
-                prompt: selectedImage ? "Image Analysis" : query,
-                model: selectedImage ? "Gemini Pro Vision" : "Gemini Pro"
-              });
-            } catch (error) {
-              console.error("Error processing request:", error);
-              Alert.alert(
-                "Error",
-                error.message || "Failed to process request. Please try again.",
-                [{ text: "OK" }]
-              );
-            } finally {
-              setLoading(false);
-            }
-          }}
+          onPress={handleProcessRequest}
+          activeOpacity={0.8}
         >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="sparkles" size={20} color="#fff" style={styles.generateIcon} />
-              <Text style={styles.generateText}>Generate Explanation</Text>
-            </>
-          )}
+          <LinearGradient
+            colors={(!query && !selectedImage || loading) 
+              ? ['#9CA3AF', '#6B7280'] 
+              : ['#FFD700', '#FF9500']
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.generateButtonGradient}
+          >
+            {loading ? (
+              <>
+                <ActivityIndicator color="#fff" />
+                <Text style={styles.generateText}>Processing...</Text>
+              </>
+            ) : (
+              <>
+                <Icon name="sparkles" size={20} color="#fff" />
+                <Text style={styles.generateText}>Analyze {inputMode === 'image' ? 'Image' : 'Question'}</Text>
+              </>
+            )}
+          </LinearGradient>
         </TouchableOpacity>
 
         {/* Tips Section */}
-        <View style={styles.tipsContainer}>
+        <View style={[styles.tipsContainer, { backgroundColor: colors.surface }]}>
           <View style={styles.tipsHeader}>
-            <Ionicons name="bulb-outline" size={20} color="#F59E0B" />
-            <Text style={styles.tipsTitle}>Tips for better results:</Text>
+            <Icon name="lightbulb" size={20} color="#F59E0B" />
+            <Text style={[styles.tipsTitle, { color: colors.text }]}>Tips for Better Results</Text>
           </View>
           {tips.map((tip, index) => (
             <View key={index} style={styles.tipItem}>
-              <View style={styles.tipBullet} />
-              <Text style={styles.tipText}>{tip}</Text>
+              <View style={[styles.tipBullet, { backgroundColor: colors.primary }]} />
+              <Text style={[styles.tipText, { color: colors.textSecondary }]}>{tip}</Text>
             </View>
           ))}
         </View>
       </ScrollView>
+
+      {/* Image Options Modal */}
+      <Modal
+        visible={showImageOptions}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowImageOptions(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity 
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowImageOptions(false)}
+          />
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalHandle} />
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Select Image</Text>
+            
+            <TouchableOpacity
+              style={[styles.modalOption, { backgroundColor: isDarkMode ? '#374151' : '#F3F4F6' }]}
+              onPress={() => handleSelectImage('camera')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.modalIconContainer, { backgroundColor: '#FF9500' + '20' }]}>
+                <Icon name="camera" size={24} color="#FF9500" />
+              </View>
+              <View style={styles.modalOptionTextContainer}>
+                <Text style={[styles.modalOptionTitle, { color: colors.text }]}>Take Photo</Text>
+                <Text style={[styles.modalOptionSubtitle, { color: colors.textSecondary }]}>
+                  Use camera to capture
+                </Text>
+              </View>
+              <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.modalOption, { backgroundColor: isDarkMode ? '#374151' : '#F3F4F6' }]}
+              onPress={() => handleSelectImage('library')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.modalIconContainer, { backgroundColor: '#3B82F6' + '20' }]}>
+                <Icon name="image" size={24} color="#3B82F6" />
+              </View>
+              <View style={styles.modalOptionTextContainer}>
+                <Text style={[styles.modalOptionTitle, { color: colors.text }]}>Choose from Gallery</Text>
+                <Text style={[styles.modalOptionSubtitle, { color: colors.textSecondary }]}>
+                  Select existing image
+                </Text>
+              </View>
+              <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => setShowImageOptions(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Footer Navigation */}
+      <FooterNavigation />
     </SafeAreaView>
   );
 };
@@ -213,274 +403,350 @@ const Imageinput = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5DC',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   backButton: {
-    padding: 8,
-    marginRight: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholder: {
+    width: 40,
   },
   headerContent: {
     flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: '700',
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 13,
     marginTop: 2,
   },
   content: {
     flex: 1,
     paddingHorizontal: 16,
   },
-  inputTypeContainer: {
+  // Mode Toggle
+  modeToggleContainer: {
     flexDirection: 'row',
     marginTop: 20,
     gap: 12,
   },
-  inputTypeButton: {
+  modeButton: {
     flex: 1,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  modeButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    borderRadius: 12,
     gap: 8,
   },
-  textInputButton: {
-    backgroundColor: '#E5E5E5',
-  },
-  imageInputButton: {
-    backgroundColor: '#E5E5E5',
-  },
-  selectedInputType: {
-    backgroundColor: '#FF8C42',
-  },
-  inputTypeText: {
+  modeButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
   },
-  selectedInputTypeText: {
-    color: '#fff',
-  },
-  languageContainer: {
+  // Image Section
+  imageSection: {
     marginTop: 20,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
   },
-  sectionLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 12,
+  imageUploadArea: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
-  languageSelector: {
-    flexDirection: 'row',
+  imageUploadGradient: {
+    paddingVertical: 48,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
   },
-  languageText: {
-    fontSize: 16,
-    color: '#333',
-  },
-  queryContainer: {
-    marginTop: 16,
+  uploadIconContainer: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-  },
-  queryInput: {
-    height: 120,
-    fontSize: 16,
-    color: '#333',
-    textAlignVertical: 'top',
-  },
-  imageContainer: {
-    marginTop: 16,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-  },
-  imageUploadButton: {
-    borderWidth: 2,
-    borderColor: '#E5E5E5',
-    borderStyle: 'dashed',
-    borderRadius: 12,
-    paddingVertical: 40,
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
-  imageUploadText: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 8,
-    fontWeight: '500',
+  imageUploadTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
   },
   imageUploadSubtext: {
     fontSize: 14,
-    color: '#999',
-    marginTop: 4,
+    marginBottom: 16,
+  },
+  uploadHintContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  uploadHint: {
+    fontSize: 12,
   },
   selectedImageContainer: {
     position: 'relative',
+    borderRadius: 20,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   selectedImage: {
     width: '100%',
-    height: 200,
-    borderRadius: 12,
-    resizeMode: 'cover',
+    height: 300,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
   },
   removeImageButton: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    alignSelf: 'flex-end',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   changeImageButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
     gap: 8,
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 12,
+    elevation: 2,
   },
   changeImageText: {
     fontSize: 16,
-    color: '#FF8C42',
-    fontWeight: '500',
+    color: '#FF9500',
+    fontWeight: '600',
   },
-  examplesContainer: {
+  // Text Section
+  textSection: {
     marginTop: 20,
+    borderRadius: 16,
+    padding: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  separator: {
-    height: 1,
-    backgroundColor: '#E5E5E5',
-    marginVertical: 16,
-    borderRadius: 1,
+  textInputHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  textInputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  queryInput: {
+    minHeight: 140,
+    fontSize: 16,
+    textAlignVertical: 'top',
+    lineHeight: 24,
+  },
+  // Examples
+  examplesContainer: {
+    marginTop: 24,
+  },
+  examplesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
   examplesTitle: {
     fontSize: 16,
-    color: '#666',
-    marginBottom: 12,
+    fontWeight: '600',
   },
-  exampleButton: {
-    backgroundColor: '#E8D5B7',
-    paddingVertical: 12,
+  exampleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 8,
+    borderRadius: 12,
+    marginBottom: 10,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   exampleText: {
+    flex: 1,
     fontSize: 14,
-    color: '#5D4E37',
-    fontWeight: '500',
+    lineHeight: 20,
   },
+  // Generate Button
   generateButton: {
+    marginTop: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  generateButtonDisabled: {
+    elevation: 1,
+    shadowOpacity: 0.1,
+  },
+  generateButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFB84D',
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginTop: 20,
-    gap: 8,
-  },
-  generateButtonDisabled: {
-    backgroundColor: '#D1D5DB',
-  },
-  generateIcon: {
-    marginRight: 4,
+    paddingVertical: 18,
+    gap: 10,
   },
   generateText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: '#fff',
   },
+  // Tips
   tipsContainer: {
-    marginTop: 20,
-    marginBottom: 30,
+    marginTop: 24,
+    marginBottom: 32,
+    borderRadius: 16,
+    padding: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
   },
   tipsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
     gap: 8,
+    marginBottom: 16,
   },
   tipsTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
+    fontWeight: '600',
   },
   tipItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 8,
-    paddingRight: 16,
+    marginBottom: 12,
   },
   tipBullet: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#666',
-    marginTop: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 7,
     marginRight: 12,
   },
   tipText: {
     flex: 1,
     fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+    lineHeight: 22,
   },
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  modalHeader: {
-    alignItems: 'center',
+  modalContent: {
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 32,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#D1D5DB',
+    borderRadius: 2,
+    alignSelf: 'center',
     marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 24,
+    textAlign: 'center',
   },
   modalOption: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
+    borderRadius: 16,
     marginBottom: 12,
     gap: 16,
   },
-  modalOptionText: {
+  modalIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalOptionTextContainer: {
+    flex: 1,
+  },
+  modalOptionTitle: {
     fontSize: 16,
-    color: '#333',
-    fontWeight: '500',
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  modalOptionSubtitle: {
+    fontSize: 13,
   },
   modalCancelButton: {
     alignItems: 'center',
@@ -489,8 +755,8 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontSize: 16,
-    color: '#FF6B6B',
-    fontWeight: '500',
+    color: '#EF4444',
+    fontWeight: '600',
   },
 });
 

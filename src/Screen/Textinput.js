@@ -11,7 +11,10 @@ import {
   Alert,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 import { getResonance } from '../api/api';
+import { saveConversation } from '../services/firebaseService';
+import FooterNavigation from '../components/FooterNavigation';
 
 const Textinput = ({navigation}) => {
   const [query, setQuery] = useState('');
@@ -44,6 +47,15 @@ const Textinput = ({navigation}) => {
       setLoading(true);
       const result = await getResonance(prompt);
       if (result) {
+        // Save conversation to Firestore
+        try {
+          await saveConversation(prompt, result, 'gemini-2.0-flash', 'text');
+          console.log('✅ Conversation saved to Firestore');
+        } catch (firestoreError) {
+          console.warn('⚠️ Failed to save to Firestore:', firestoreError);
+          // Don't block the user experience if Firestore fails
+        }
+
         navigation.navigate('Output', { 
           result: result,
           prompt: prompt,
@@ -77,10 +89,15 @@ const Textinput = ({navigation}) => {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
+          <Icon name="arrow-back" size={24} color="#1F1F1F" />
+        </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Input Your Query</Text>
-          <Text style={styles.headerSubtitle}>Ask about Vedic mathematics</Text>
+          <Text style={styles.headerTitle}>Text Input</Text>
         </View>
+        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
+          <Icon name="account-circle" size={28} color="#1F1F1F" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -160,6 +177,9 @@ const Textinput = ({navigation}) => {
           ))}
         </View>
       </ScrollView>
+
+      {/* Footer Navigation */}
+      <FooterNavigation />
     </SafeAreaView>
   );
 };
@@ -172,28 +192,27 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5E5',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  backButton: {
+  headerButton: {
     padding: 8,
-    marginRight: 8,
   },
   headerContent: {
     flex: 1,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
+    color: '#1F1F1F',
   },
   content: {
     flex: 1,

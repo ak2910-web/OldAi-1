@@ -2,6 +2,7 @@
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import React from 'react'
+import { ThemeProvider } from './src/context/ThemeContext'
 
 import Splash from './src/Screen/Splash'
 import ArrowLeftIcon from './src/components/ArrowLeftIcon'
@@ -16,11 +17,15 @@ import ProfileEdit from './src/Screen/ProfileEdit'
 import Output from './src/Screen/Output'
 import HowItWorks from './src/Screen/HowItWorks'
 import About from './src/Screen/About'
+import FirestoreTest from './src/Screen/FirestoreTest'
+import Explore from './src/Screen/Explore'
+import DiscoveryDetail from './src/Screen/DiscoveryDetail'
 
 const Stack = createNativeStackNavigator();
 const App = () => {
   return (
-    <NavigationContainer >
+    <ThemeProvider>
+      <NavigationContainer >
       <Stack.Navigator screenOptions={{
         // show the native header for all screens so a back button is available
         headerShown: true,
@@ -32,23 +37,27 @@ const App = () => {
       }}
       initialRouteName="splash">
   <Stack.Screen name='splash' component={Splash} options={{ headerShown: false }} />
-  <Stack.Screen name='Login' component={Login} />
-  <Stack.Screen name='Signup' component={Signup} />
-  <Stack.Screen name='Profile' component={Profile} />
-  <Stack.Screen name='ProfileEdit' component={ProfileEdit} />
-  <Stack.Screen name='Home' component={Homescreen} />
-  <Stack.Screen name='HowItWorks' component={HowItWorks} options={{ title: 'How it works' }} />
-  <Stack.Screen name='About' component={About} options={{ title: 'About VedAI' }} />
-  <Stack.Screen name='Textinput' component={Textinput} />
-  <Stack.Screen name= 'Imageinput' component={Imageinput} />
-  <Stack.Screen name='ForgotPassword' component={ForgotPassword} />
-  <Stack.Screen name='Output' component={Output} />
+  <Stack.Screen name='Login' component={Login} options={{ headerShown: false }} />
+  <Stack.Screen name='Signup' component={Signup} options={{ headerShown: false }} />
+  <Stack.Screen name='Profile' component={Profile} options={{ headerShown: false }} />
+  <Stack.Screen name='ProfileEdit' component={ProfileEdit} options={{ headerShown: false }} />
+  <Stack.Screen name='Home' component={Homescreen} options={{ headerShown: false }} />
+  <Stack.Screen name='HowItWorks' component={HowItWorks} options={{ headerShown: false }} />
+  <Stack.Screen name='About' component={About} options={{ headerShown: false }} />
+  <Stack.Screen name='Textinput' component={Textinput} options={{ headerShown: false }} />
+  <Stack.Screen name='Imageinput' component={Imageinput} options={{ headerShown: false }} />
+  <Stack.Screen name='ForgotPassword' component={ForgotPassword} options={{ headerShown: false }} />
+  <Stack.Screen name='Output' component={Output} options={{ headerShown: false }} />
+  <Stack.Screen name='FirestoreTest' component={FirestoreTest} options={{ headerShown: false }} />
+  <Stack.Screen name='Explore' component={Explore} options={{ headerShown: false }} />
+  <Stack.Screen name='DiscoveryDetail' component={DiscoveryDetail} options={{ headerShown: false }} />
 
 
 
       </Stack.Navigator>
 
     </NavigationContainer>
+    </ThemeProvider>
   )
 }
 
