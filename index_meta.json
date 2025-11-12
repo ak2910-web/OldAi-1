@@ -1,0 +1,8 @@
+﻿{
+  "contentsDeltaUri": "",
+  "dimensions": 768,
+  "approximateNeighborsCount": 150,
+  "distanceMeasureType": "COSINE_DISTANCE",
+  "algorithmConfig": { "treeAhConfig": { "fractionLeafNodesToSearch": 0.07 } },
+  "embeddingNormalization": "UNIT_L2_NORM"
+}

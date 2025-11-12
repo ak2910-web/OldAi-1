@@ -29,12 +29,6 @@ const Login = ({ navigation }) => {
   React.useEffect(() => {
     const checkSignInStatus = async () => {
       try {
-        // Check if user is signed in with Firebase
-        const currentUser = auth().currentUser;
-        if (currentUser) {
-          await auth().signOut();
-        }
-        
         // Check if user is signed in with Google
         const isSignedIn = await GoogleSignin.isSignedIn();
         if (isSignedIn) {
@@ -122,70 +116,97 @@ const Login = ({ navigation }) => {
 
   // Configure Google Signin
   React.useEffect(() => {
-    // Web client ID from google-services.json (OAuth client type 3)
-    GoogleSignin.configure({
-      webClientId: '215577452779-s4ljb43bjj3430ebh9iepic9evf91h14.apps.googleusercontent.com',
-      offlineAccess: true,
-      forceCodeForRefreshToken: true,
-    });
+    const configureGoogleSignIn = async () => {
+      try {
+        console.log('Configuring Google Sign-In...');
+        // Web client ID from google-services.json (OAuth client type 3)
+        GoogleSignin.configure({
+          webClientId: '215577452779-s4ljb43bjj3430ebh9iepic9evf91h14.apps.googleusercontent.com',
+          offlineAccess: true,
+        });
+        console.log('Google Sign-In configured successfully');
+        
+        // Check if Play Services is available
+        const hasPlayServices = await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+        console.log('Play Services available:', hasPlayServices);
+      } catch (error) {
+        console.error('Error configuring Google Sign-In:', error);
+        Alert.alert(
+          'Configuration Error',
+          'Google Sign-In could not be configured. Please check your setup.\n\nError: ' + (error?.message || 'Unknown error')
+        );
+      }
+    };
+    
+    configureGoogleSignIn();
   }, []);
 
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
+      console.log('Step 1: Checking Play Services...');
       
       // Check Play Services first
       await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      console.log('Step 2: Play Services available');
       
       // Make sure we're signed out before attempting sign in
       const isSignedIn = await GoogleSignin.isSignedIn();
-      if (isSignedIn) {
-        await GoogleSignin.signOut();
-        // Small delay to ensure sign out is complete
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+      console.log('Step 3: Current sign-in status:', isSignedIn);
       
-      // Clear any existing Firebase auth state
-      const currentUser = auth().currentUser;
-      if (currentUser) {
-        await auth().signOut();
-        // Small delay to ensure sign out is complete
+      if (isSignedIn) {
+        console.log('Step 4: Signing out...');
+        await GoogleSignin.signOut();
         await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('Step 5: Signed out successfully');
       }
       
       // Now attempt sign in
-      console.log('Starting Google Sign In...');
-      const { idToken, user } = await GoogleSignin.signIn();
-      console.log('Google Sign In successful:', user?.email);
+      console.log('Step 6: Starting Google Sign In...');
+      const signInResult = await GoogleSignin.signIn();
+      console.log('Step 7: Google Sign In result:', JSON.stringify(signInResult, null, 2));
+      
+      const { idToken, user } = signInResult;
+      console.log('Step 8: ID Token exists:', !!idToken);
+      console.log('Step 9: User email:', user?.email);
       
       if (!idToken) {
         throw new Error('No ID token received from Google Sign-In');
       }
 
       // Create a Google credential with the token
+      console.log('Step 10: Creating Firebase credential...');
       const googleCredential = auth.GoogleAuthProvider.credential(idToken);
       
       // Sign-in the user with the credential
-      console.log('Signing in to Firebase with credential...');
+      console.log('Step 11: Signing in to Firebase...');
       const userCredential = await auth().signInWithCredential(googleCredential);
-      console.log('Firebase Sign In successful:', userCredential.user.email);
+      console.log('Step 12: Firebase Sign In successful:', userCredential.user.email);
       
+      console.log('Step 13: Navigating to Home...');
       navigation.replace('Home');
     } catch (error) {
-            console.error('Google sign-in error:', error);
+      console.error('==========================================');
+      console.error('GOOGLE SIGN-IN ERROR DETAILS:');
+      console.error('Error object:', JSON.stringify(error, null, 2));
+      console.error('Error code:', error?.code);
+      console.error('Error message:', error?.message);
+      console.error('Error name:', error?.name);
+      console.error('Full error:', error);
+      console.error('==========================================');
+      
       let errorMessage = 'Unable to sign in with Google';
-      
-      // More detailed error logging
-      if (error?.code) {
-        console.log('Error code:', error.code);
-      }
-      if (error?.message) {
-        console.log('Error message:', error.message);
-      }
+      let debugInfo = '';
       
       if (error?.code) {
+        debugInfo = `\n\nDebug Info:\nError Code: ${error.code}`;
+        if (error?.message) {
+          debugInfo += `\nError Message: ${error.message}`;
+        }
+        
         switch (error.code) {
           case 'SIGN_IN_CANCELLED':
+          case '-5':
             errorMessage = 'Sign in was cancelled';
             break;
           case 'SIGN_IN_REQUIRED':
@@ -194,31 +215,42 @@ const Login = ({ navigation }) => {
           case 'PLAY_SERVICES_NOT_AVAILABLE':
             errorMessage = 'Google Play Services is not available';
             break;
-          case '12501': // This is a common Google Sign-In error code
+          case '12501':
             errorMessage = 'Sign in was cancelled by user';
             break;
           case 'auth/invalid-credential':
             errorMessage = 'The credential is invalid. Please try again.';
             break;
+          case 'auth/network-request-failed':
+            errorMessage = 'Network error. Please check your internet connection.';
+            break;
           default:
             errorMessage = error.message || 'An unexpected error occurred';
             break;
         }
+      } else if (error?.message) {
+        errorMessage = error.message;
+        debugInfo = `\n\nDebug Info:\n${error.message}`;
       }
       
       Alert.alert(
         'Google Sign-In Error',
-        errorMessage,
+        errorMessage + debugInfo,
         [
+          {
+            text: 'Copy Error',
+            onPress: () => {
+              console.log('Full error for copying:', JSON.stringify(error, null, 2));
+            }
+          },
           {
             text: 'Try Again',
             onPress: () => {
-              // Clean up state before retrying
               GoogleSignin.signOut().catch(() => {});
               auth().signOut().catch(() => {});
             }
           },
-          { text: 'OK' }
+          { text: 'Cancel' }
         ]
       );
     } finally {
@@ -296,7 +328,7 @@ const Login = ({ navigation }) => {
 
         <TouchableOpacity 
           style={styles.forgotPassword}
-          onPress={() => Alert.alert('Coming Soon', 'Password reset will be available soon!')}
+          onPress={() => navigation.navigate('ForgotPassword')}
         >
           <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
         </TouchableOpacity>

@@ -30,12 +30,6 @@ const Signup = ({ navigation }) => {
   React.useEffect(() => {
     const checkSignInStatus = async () => {
       try {
-        // Check if user is signed in with Firebase
-        const currentUser = auth().currentUser;
-        if (currentUser) {
-          await auth().signOut();
-        }
-        
         // Check if user is signed in with Google
         const isSignedIn = await GoogleSignin.isSignedIn();
         if (isSignedIn) {
@@ -98,13 +92,11 @@ const Signup = ({ navigation }) => {
         displayName: name,
       });
 
-      // Navigate to Profile screen
-      navigation.replace('Profile');
+      // Navigate to Home screen
+      navigation.replace('Home');
     } catch (error) {
-      // Log full error for debugging
       console.error('Signup error:', error);
 
-      // Map known Firebase auth error codes to user-friendly messages
       let errorMessage = 'An error occurred during signup';
       switch (error?.code) {
         case 'auth/email-already-in-use':
@@ -121,9 +113,7 @@ const Signup = ({ navigation }) => {
           break;
       }
 
-      // Show the friendly message and include the auth error code/message for debugging
-      const detailed = `${errorMessage}${error?.code ? `\n(${error.code})` : ''}${error?.message ? `\n${error.message}` : ''}`;
-      Alert.alert('Signup Error', detailed);
+      Alert.alert('Signup Error', errorMessage);
     } finally {
       setLoading(false);
     }
@@ -280,7 +270,7 @@ const Signup = ({ navigation }) => {
               await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
               
               // Attempt sign in
-              const { idToken } = await GoogleSignin.signIn();
+              const { idToken, user } = await GoogleSignin.signIn();
               
               if (!idToken) {
                 throw new Error('No ID token received from Google Sign-In');

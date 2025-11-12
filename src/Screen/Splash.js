@@ -49,7 +49,7 @@ const Splash = ({ navigation }) => {
 
     // Auto-hide splash screen after 3 seconds
     const timer = setTimeout(() => {
-      navigation.navigate('Login');
+      navigation.navigate('Home');
     }, 3000);
 
     return () => clearTimeout(timer);

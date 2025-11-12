@@ -8,14 +8,21 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
+// LinearGradient removed — header uses simple View
 import Icon from 'react-native-vector-icons/Feather';
 import auth from '@react-native-firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../context/ThemeContext';
+import FooterNavigation from '../components/FooterNavigation';
+import ProfileIcon from '../components/ProfileIcon';
 
 const Profile = ({ navigation }) => {
+  const { isDarkMode, colors, toggleTheme } = useTheme();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 
   useEffect(() => {
     const currentUser = auth().currentUser;
@@ -25,7 +32,18 @@ const Profile = ({ navigation }) => {
         displayName: currentUser.displayName || 'VedAI User',
         photoURL: currentUser.photoURL || null,
       });
+    } else {
+      setUser(null);
     }
+    // load persisted notifications
+    (async () => {
+      try {
+        const notif = await AsyncStorage.getItem('@vedai:notifications');
+        if (notif !== null) setNotificationsEnabled(notif === 'true');
+      } catch (e) {
+        // ignore
+      }
+    })();
     setLoading(false);
   }, []);
 
@@ -39,8 +57,14 @@ const Profile = ({ navigation }) => {
   };
 
   const handleEditProfile = () => {
-    // TODO: Implement edit profile functionality
-    Alert.alert('Coming Soon', 'Profile editing will be available soon!');
+    navigation.navigate('ProfileEdit');
+  };
+
+  const toggleNotifications = async (value) => {
+    setNotificationsEnabled(value);
+    try {
+      await AsyncStorage.setItem('@vedai:notifications', value ? 'true' : 'false');
+    } catch (e) {}
   };
 
   if (loading) {
@@ -51,85 +75,152 @@ const Profile = ({ navigation }) => {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <LinearGradient
-        colors={['#FF9500', '#FFD700']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity 
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Icon name="arrow-left" size={24} color="white" />
+  // If user is not logged in, show login/signup options
+  if (!user) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.guestContainer}>
+          <ProfileIcon 
+            size={120} 
+            name="Guest" 
+            isGuest={true}
+          />
+          <Text style={[styles.guestTitle, { color: colors.text }]}>You're using VedAI as a Guest</Text>
+          <Text style={[styles.guestSubtitle, { color: colors.textSecondary }]}>
+            Sign in to save your conversation history and access it across devices
+          </Text>
+
+          <View style={styles.guestButtonContainer}>
+            <TouchableOpacity
+              style={styles.loginButton}
+              onPress={() => navigation.navigate('Login')}>
+              <Text style={styles.loginButtonText}>Login</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.signupButton}
+              onPress={() => navigation.navigate('Signup')}>
+              <Text style={styles.signupButtonText}>Sign Up</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.continueGuestButton}
+            onPress={() => navigation.navigate('Home')}>
+            <Text style={styles.continueGuestText}>Continue as Guest</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Profile</Text>
+
+          <View style={styles.guestFeatures}>
+            <Text style={[styles.guestFeaturesTitle, { color: colors.text }]}>What you can do as a guest:</Text>
+            <View style={styles.featureItem}>
+              <Icon name="check-circle" size={20} color="#22C55E" />
+              <Text style={[styles.featureText, { color: colors.textSecondary }]}>Ask unlimited questions</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <Icon name="check-circle" size={20} color="#22C55E" />
+              <Text style={[styles.featureText, { color: colors.textSecondary }]}>Use image and text input</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <Icon name="x-circle" size={20} color="#EF4444" />
+              <Text style={[styles.featureText, { color: colors.textSecondary }]}>Save conversation history</Text>
+            </View>
+            <View style={styles.featureItem}>
+              <Icon name="x-circle" size={20} color="#EF4444" />
+              <Text style={[styles.featureText, { color: colors.textSecondary }]}>Access history across devices</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Footer Navigation */}
+        <FooterNavigation />
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
+      {/* Use native navigator header — remove in-screen back button/title to avoid duplicates */}
+      <View style={[styles.header, { backgroundColor: colors.surface }]}> 
+        <View style={styles.headerContent}>
           <View style={styles.placeholder} />
         </View>
-      </LinearGradient>
+      </View>
 
       <View style={styles.profileContent}>
         <View style={styles.avatarContainer}>
-          {user?.photoURL ? (
-            <Image
-              source={{ uri: user.photoURL }}
-              style={styles.avatar}
-            />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Icon name="user" size={40} color="#6B7280" />
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.editAvatarButton}
+          <ProfileIcon 
+            size={100} 
+            name={user?.displayName || 'VedAI User'} 
+            imageUri={user?.photoURL}
+            showBadge={true}
+          />
+          <TouchableOpacity 
+            style={[styles.editAvatarButton, { backgroundColor: colors.primary }]} 
             onPress={handleEditProfile}
           >
             <Icon name="edit-2" size={16} color="white" />
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.displayName}>{user?.displayName}</Text>
-        <Text style={styles.email}>{user?.email}</Text>
+        <Text style={[styles.displayName, { color: colors.text }]}>{user?.displayName}</Text>
+        <Text style={[styles.roleText, { color: colors.textSecondary }]}>Vedic Scholar</Text>
 
-        <View style={styles.infoContainer}>
-          <View style={styles.infoItem}>
-            <Icon name="book" size={20} color="#6B7280" />
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Total Queries</Text>
-              <Text style={styles.infoValue}>0</Text>
+        <TouchableOpacity style={[styles.mainEditButton, { backgroundColor: colors.primary }]} onPress={handleEditProfile}>
+          <Text style={styles.mainEditButtonText}>Edit Profile</Text>
+        </TouchableOpacity>
+
+        <View style={[styles.card, { backgroundColor: colors.card }]}> 
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Account</Text>
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
+            <View style={styles.rowRight}>
+              <Text style={[styles.value, { color: colors.text }]}>{user?.email}</Text>
+              <TouchableOpacity>
+                <Text style={[styles.changeText, { color: colors.primary }]}>Change</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.infoItem}>
-            <Icon name="calendar" size={20} color="#6B7280" />
-            <View style={styles.infoTextContainer}>
-              <Text style={styles.infoLabel}>Member Since</Text>
-              <Text style={styles.infoValue}>
-                {new Date().toLocaleDateString()}
-              </Text>
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Phone</Text>
+            <View style={styles.rowRight}>
+              <Text style={[styles.value, { color: colors.text }]}>+91 98765 43210</Text>
+              <TouchableOpacity>
+                <Text style={[styles.changeText, { color: colors.primary }]}>Change</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
+            <View style={styles.rowRight}>
+              <Text style={[styles.value, { color: colors.text }]}>••••••••</Text>
+              <TouchableOpacity>
+                <Text style={[styles.changeText, { color: colors.primary }]}>Change</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.editProfileButton}
-          onPress={handleEditProfile}
-        >
-          <Icon name="edit" size={20} color="#1E3A8A" />
-          <Text style={styles.editProfileText}>Edit Profile</Text>
-        </TouchableOpacity>
+        <View style={[styles.card, { backgroundColor: colors.card }]}> 
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Settings</Text>
+          <View style={styles.settingRow}>
+            <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications</Text>
+            <Switch value={notificationsEnabled} onValueChange={toggleNotifications} thumbColor={notificationsEnabled ? colors.primary : '#fff'} />
+          </View>
+          <View style={styles.settingRow}>
+            <Text style={[styles.settingLabel, { color: colors.text }]}>Dark Mode</Text>
+            <Switch value={isDarkMode} onValueChange={toggleTheme} thumbColor={isDarkMode ? colors.primary : '#fff'} trackColor={{ true: '#9CA3AF', false: '#E5E7EB' }} />
+          </View>
+        </View>
 
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-        >
-          <Icon name="log-out" size={20} color="white" />
-          <Text style={styles.logoutText}>Logout</Text>
+        <TouchableOpacity style={[styles.logoutButtonFull, { backgroundColor: '#fff', borderColor: '#F87171', borderWidth: 1 }]} onPress={handleLogout}>
+          <Text style={[styles.logoutTextFull, { color: '#F87171' }]}>Logout</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Footer Navigation */}
+      <FooterNavigation />
     </SafeAreaView>
   );
 };
@@ -207,10 +298,10 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 4,
   },
-  email: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginBottom: 24,
+  roleText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    marginBottom: 16,
   },
   infoContainer: {
     width: '100%',
@@ -266,6 +357,158 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: 'white',
+  },
+  mainEditButton: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+  },
+  mainEditButtonText: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  card: {
+    width: '100%',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 20,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  label: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  value: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginRight: 12,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  changeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F59E0B',
+    marginLeft: 8,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  logoutButtonFull: {
+    marginTop: 24,
+    width: '90%',
+    alignSelf: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  logoutTextFull: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Guest view styles
+  guestContainer: {
+    flex: 1,
+    backgroundColor: '#F5F5DC',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  guestTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1F1F1F',
+    marginTop: 24,
+    textAlign: 'center',
+  },
+  guestSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 12,
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+  guestButtonContainer: {
+    width: '100%',
+    marginTop: 32,
+    gap: 12,
+  },
+  loginButton: {
+    backgroundColor: '#FF9500',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  loginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  signupButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FF9500',
+  },
+  signupButtonText: {
+    color: '#FF9500',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  continueGuestButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+  },
+  continueGuestText: {
+    color: '#666',
+    fontSize: 16,
+  },
+  guestFeatures: {
+    width: '100%',
+    marginTop: 32,
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+  },
+  guestFeaturesTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F1F1F',
+    marginBottom: 16,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 12,
+  },
+  featureText: {
+    fontSize: 15,
+    color: '#333',
   },
 });
 
