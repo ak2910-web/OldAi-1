@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -20,6 +21,47 @@ const Textinput = ({navigation}) => {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
+  const [elapsedTime, setElapsedTime] = useState(0);
+
+  const languages = [
+    { code: 'en', name: 'English', icon: '🇬🇧' },
+    { code: 'hi', name: 'Hindi', icon: '🇮🇳' },
+    { code: 'sa', name: 'Sanskrit', icon: '🕉️' },
+  ];
+
+  const loadingMessages = [
+    'Connecting to ancient wisdom...',
+    'Analyzing Vedic mathematics...',
+    'Comparing ancient and modern approaches...',
+    'Generating detailed explanation...',
+    'Almost there...',
+  ];
+
+  useEffect(() => {
+    let interval;
+    if (loading) {
+      setElapsedTime(0);
+      setLoadingMessage(loadingMessages[0]);
+      
+      interval = setInterval(() => {
+        setElapsedTime(prev => {
+          const newTime = prev + 1;
+          // Update message every 5 seconds
+          if (newTime % 5 === 0) {
+            const messageIndex = Math.min(Math.floor(newTime / 5), loadingMessages.length - 1);
+            setLoadingMessage(loadingMessages[messageIndex]);
+          }
+          return newTime;
+        });
+      }, 1000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [loading]);
 
 
   const examples = [
@@ -45,27 +87,39 @@ const Textinput = ({navigation}) => {
 
     try {
       setLoading(true);
-      const result = await getResonance(prompt);
+      console.log('🚀 Starting API call...');
+      console.log('🌐 Language:', selectedLanguage);
+      
+      const result = await getResonance(prompt, selectedLanguage);
+      console.log('✅ API response received, length:', result?.length || 0);
+      
       if (result) {
-        // Save conversation to Firestore
-        try {
-          await saveConversation(prompt, result, 'gemini-2.0-flash', 'text');
-          console.log('✅ Conversation saved to Firestore');
-        } catch (firestoreError) {
-          console.warn('⚠️ Failed to save to Firestore:', firestoreError);
-          // Don't block the user experience if Firestore fails
-        }
+        // Save conversation to Firestore (non-blocking)
+        saveConversation(prompt, result, 'gemini-2.0-flash', 'text')
+          .then(() => console.log('✅ Conversation saved to Firestore'))
+          .catch(err => console.warn('⚠️ Failed to save to Firestore:', err));
 
+        console.log('📱 Navigating to Output screen...');
+        
+        // Navigate first, then stop loading
         navigation.navigate('Output', { 
           result: result,
           prompt: prompt,
-          model: 'Gemini Pro'
+          model: 'Gemini Pro',
+          language: selectedLanguage
         });
+        
+        // Small delay to ensure navigation completes
+        setTimeout(() => {
+          setLoading(false);
+        }, 300);
       } else {
+        setLoading(false);
         throw new Error('No response received from the server');
       }
     } catch (error) {
-      console.error("Error generating response:", error);
+      setLoading(false);
+      console.error("❌ Error generating response:", error);
       let errorMessage = error.message;
       
       if (errorMessage.includes('Network request failed')) {
@@ -80,13 +134,37 @@ const Textinput = ({navigation}) => {
         errorMessage || "Failed to generate response. Please try again.",
         [{ text: "OK" }]
       );
-    } finally {
-      setLoading(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Loading Modal */}
+      <Modal
+        visible={loading}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ActivityIndicator size="large" color="#FF9500" />
+            <Text style={styles.modalTitle}>{loadingMessage}</Text>
+            <Text style={styles.modalTimer}>{elapsedTime}s elapsed</Text>
+            <Text style={styles.modalHint}>
+              Generating comprehensive ancient vs modern comparison...
+            </Text>
+            <View style={styles.progressBar}>
+              <View 
+                style={[
+                  styles.progressFill, 
+                  { width: `${Math.min((elapsedTime / 30) * 100, 95)}%` }
+                ]} 
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
@@ -113,11 +191,62 @@ const Textinput = ({navigation}) => {
         {/* Language Selection */}
         <View style={styles.languageContainer}>
           <Text style={styles.sectionLabel}>Language</Text>
-          <TouchableOpacity style={styles.languageSelector}>
-            <Text style={styles.languageText}>{selectedLanguage}</Text>
+          <TouchableOpacity 
+            style={styles.languageSelector}
+            onPress={() => setShowLanguageModal(true)}
+          >
+            <View style={styles.languageDisplay}>
+              <Text style={styles.languageIcon}>
+                {languages.find(l => l.name === selectedLanguage)?.icon}
+              </Text>
+              <Text style={styles.languageText}>{selectedLanguage}</Text>
+            </View>
             <Ionicons name="chevron-down" size={20} color="#666" />
           </TouchableOpacity>
         </View>
+
+        {/* Language Selection Modal */}
+        <Modal
+          visible={showLanguageModal}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setShowLanguageModal(false)}
+        >
+          <View style={styles.languageModalOverlay}>
+            <View style={styles.languageModalContent}>
+              <View style={styles.languageModalHeader}>
+                <Text style={styles.languageModalTitle}>Select Language</Text>
+                <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
+                  <Icon name="close" size={24} color="#333" />
+                </TouchableOpacity>
+              </View>
+              {languages.map((language) => (
+                <TouchableOpacity
+                  key={language.code}
+                  style={[
+                    styles.languageOption,
+                    selectedLanguage === language.name && styles.languageOptionSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedLanguage(language.name);
+                    setShowLanguageModal(false);
+                  }}
+                >
+                  <Text style={styles.languageOptionIcon}>{language.icon}</Text>
+                  <Text style={[
+                    styles.languageOptionText,
+                    selectedLanguage === language.name && styles.languageOptionTextSelected
+                  ]}>
+                    {language.name}
+                  </Text>
+                  {selectedLanguage === language.name && (
+                    <Icon name="check" size={24} color="#FF9500" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Modal>
 
         {/* Query Input */}
         <View style={styles.queryContainer}>
@@ -265,11 +394,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+  },
+  languageDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  languageIcon: {
+    fontSize: 20,
   },
   languageText: {
     fontSize: 16,
     color: '#333',
+    fontWeight: '500',
   },
   queryContainer: {
     marginTop: 16,
@@ -364,6 +505,101 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
+  },
+  // Loading Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    width: '85%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginTop: 20,
+    textAlign: 'center',
+  },
+  modalTimer: {
+    fontSize: 14,
+    color: '#FF9500',
+    marginTop: 8,
+    fontWeight: '500',
+  },
+  modalHint: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 12,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  progressBar: {
+    width: '100%',
+    height: 4,
+    backgroundColor: '#E5E5E5',
+    borderRadius: 2,
+    marginTop: 20,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#FF9500',
+    borderRadius: 2,
+  },
+  // Language Modal Styles
+  languageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  languageModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  languageModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5E5',
+  },
+  languageModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  languageOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    gap: 12,
+  },
+  languageOptionSelected: {
+    backgroundColor: '#FFF8E7',
+  },
+  languageOptionIcon: {
+    fontSize: 24,
+  },
+  languageOptionText: {
+    flex: 1,
+    fontSize: 16,
+    color: '#333',
+  },
+  languageOptionTextSelected: {
+    fontWeight: '600',
+    color: '#FF9500',
   },
 });
 

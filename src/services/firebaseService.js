@@ -60,6 +60,7 @@ export const saveConversation = async (question, answer, model = 'gemini-2.0-fla
 export const getUserConversations = async (limit = 50) => {
   try {
     const userId = auth().currentUser?.uid || 'anonymous';
+    console.log(`📚 Fetching conversations for user: ${userId}`);
 
     const snapshot = await firestore()
       .collection(COLLECTIONS.CONVERSATIONS)
@@ -80,6 +81,17 @@ export const getUserConversations = async (limit = 50) => {
     return conversations;
   } catch (error) {
     console.error('❌ Error fetching conversations:', error);
+    console.error('Error details:', {
+      code: error.code,
+      message: error.message,
+      name: error.name
+    });
+    
+    if (error.message.includes('ECONNREFUSED') || error.message.includes('fetch')) {
+      console.error('💡 Tip: Make sure Firestore emulator is running on port 8080');
+      console.error('   Run: cd C:\\OldAi\\OldAi\\vedai-backend && firebase emulators:start');
+    }
+    
     throw error;
   }
 };
@@ -246,3 +258,6 @@ export default {
   getUserStats,
   testFirestoreConnection,
 };
+
+// Alias for backwards compatibility
+export const getConversations = getUserConversations;

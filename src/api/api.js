@@ -13,13 +13,13 @@ const testConnection = async () => {
   }
 };
 
-export const getResonance = async (text) => {
+export const getResonance = async (text, language = 'English') => {
   let retries = 0;
   
   while (retries <= MAX_RETRIES) {
     try {
       console.log('🌐 Sending request to:', `${BASE_URL}/answerQuestion`);
-      console.log('📝 Request body:', { question: text });
+      console.log('📝 Request body:', { question: text, language: language });
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
@@ -30,7 +30,10 @@ export const getResonance = async (text) => {
           "Content-Type": "application/json",
           "Accept": "application/json"
         },
-        body: JSON.stringify({ question: text }),
+        body: JSON.stringify({ 
+          question: text,
+          language: language 
+        }),
         signal: controller.signal
       });
       
@@ -46,12 +49,16 @@ export const getResonance = async (text) => {
 
       const data = await res.json();
       console.log('✅ Response received successfully');
+      console.log('📦 Response data keys:', Object.keys(data));
+      console.log('📝 Answer length:', data.answer?.length || 0);
+      console.log('🔍 Answer preview:', data.answer?.substring(0, 100));
       
       if (data.error) {
         throw new Error(data.error);
       }
       
       if (!data.answer) {
+        console.error('❌ No answer field in response:', data);
         throw new Error('No answer received from server');
       }
       
@@ -114,5 +121,30 @@ export const extractText = async (base64Image, mimeType) => {
     }
     console.error('Error in extractText:', error);
     throw error;
+  }
+};
+
+// Get recent searches
+export const getRecentSearches = async (limit = 10) => {
+  try {
+    console.log('📜 Fetching recent searches...');
+    
+    const res = await fetch(`${BASE_URL}/getRecentSearches?limit=${limit}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Server error (${res.status}): ${errorText}`);
+    }
+
+    const data = await res.json();
+    console.log(`✅ Fetched ${data.count} recent searches`);
+    return data.searches || [];
+    
+  } catch (error) {
+    console.error('❌ Error fetching recent searches:', error);
+    return []; // Return empty array on error
   }
 };

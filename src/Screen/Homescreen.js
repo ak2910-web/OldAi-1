@@ -14,8 +14,8 @@ import {
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
-import { getResonance, getTextFromImage } from "../api/api";
-import { getConversations } from '../services/firebaseService';
+import { getResonance, getTextFromImage, getRecentSearches } from "../api/api";
+import { getUserConversations } from '../services/firebaseService';
 import auth from '@react-native-firebase/auth';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
@@ -33,25 +33,53 @@ const Homescreen = ({navigation}) => {
   const [conversations, setConversations] = useState([]);
   const [isGuest, setIsGuest] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [loadingSearches, setLoadingSearches] = useState(false);
 
   useEffect(() => {
-    // Check if user is authenticated
-    const user = auth().currentUser;
-    setCurrentUser(user);
-    setIsGuest(!user);
-    
-    // Load conversations if authenticated
-    if (currentUser) {
-      loadConversations();
-    }
+    // Auth state listener
+    const unsubscribe = auth().onAuthStateChanged((user) => {
+      console.log('👤 Auth state changed:', user ? `User: ${user.email}` : 'Guest');
+      setCurrentUser(user);
+      setIsGuest(!user);
+      
+      // Load conversations if authenticated
+      if (user) {
+        loadConversations();
+      } else {
+        setConversations([]);
+      }
+    });
+
+    // Load recent searches (available for everyone)
+    loadRecentSearches();
+
+    return () => unsubscribe();
   }, []);
 
   const loadConversations = async () => {
     try {
-      const convos = await getConversations();
-      setConversations(convos.slice(0, 10)); // Show last 10
+      console.log('📚 Loading conversations...');
+      const convos = await getUserConversations(10); // Fetch last 10
+      console.log(`✅ Loaded ${convos.length} conversations`);
+      setConversations(convos);
     } catch (error) {
-      console.error('Error loading conversations:', error);
+      console.error('❌ Error loading conversations:', error);
+      console.error('Make sure Firestore emulator is running on port 8080');
+    }
+  };
+
+  const loadRecentSearches = async () => {
+    try {
+      setLoadingSearches(true);
+      console.log('📜 Loading recent searches...');
+      const searches = await getRecentSearches(5); // Fetch last 5
+      console.log(`✅ Loaded ${searches.length} recent searches`);
+      setRecentSearches(searches);
+    } catch (error) {
+      console.error('❌ Error loading recent searches:', error);
+    } finally {
+      setLoadingSearches(false);
     }
   };
 
@@ -101,12 +129,23 @@ const Homescreen = ({navigation}) => {
 
   const handleConversationPress = (conversation) => {
     toggleDrawer();
+    console.log('📖 Opening conversation:', conversation.id);
     // Navigate to output with this conversation
     navigation.navigate('Output', { 
-      results: conversation.response,
-      question: conversation.question 
+      result: conversation.answer,  // Changed from 'results' to 'result' and 'response' to 'answer'
+      prompt: conversation.question  // Changed from 'question' to 'prompt' to match Output screen
     });
   };
+
+  const handleRecentSearchPress = (search) => {
+    console.log('🔍 Repeating search:', search.question);
+    // Navigate to text input with the question pre-filled
+    navigation.navigate('Textinput', {
+      prefilledQuestion: search.question,
+      language: search.language
+    });
+  };
+
   const handleImageInput = async () => {
     console.log('Image input pressed');
     try {
@@ -408,12 +447,66 @@ const Homescreen = ({navigation}) => {
 
           {/* Recent Queries Section */}
           <View style={[styles.section, styles.lastSection]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Queries</Text>
-            <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-              <Icon name="clock" size={48} color={colors.border} style={styles.emptyIcon} />
-              <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>No recent queries yet</Text>
-              <Text style={[styles.emptyStateSubtext, { color: colors.textTertiary }]}>Your recent searches will appear here</Text>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Queries</Text>
+              {recentSearches.length > 0 && (
+                <TouchableOpacity onPress={loadRecentSearches}>
+                  <Icon name="refresh-cw" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
             </View>
+            {loadingSearches ? (
+              <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+                <Icon name="loader" size={48} color={colors.border} style={styles.emptyIcon} />
+                <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>Loading...</Text>
+              </View>
+            ) : recentSearches.length === 0 ? (
+              <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
+                <Icon name="clock" size={48} color={colors.border} style={styles.emptyIcon} />
+                <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>No recent queries yet</Text>
+                <Text style={[styles.emptyStateSubtext, { color: colors.textTertiary }]}>Your recent searches will appear here</Text>
+              </View>
+            ) : (
+              <View>
+                {recentSearches.map((search, index) => (
+                  <TouchableOpacity
+                    key={search.id || index}
+                    style={[styles.recentSearchCard, { backgroundColor: colors.surface }]}
+                    onPress={() => handleRecentSearchPress(search)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.recentSearchHeader}>
+                      <View style={[styles.languageBadge, { 
+                        backgroundColor: search.language === 'Hindi' ? '#DBEAFE' : 
+                                        search.language === 'Sanskrit' ? '#FEF3C7' : '#F3E8FF' 
+                      }]}>
+                        <Text style={styles.languageBadgeText}>
+                          {search.language === 'English' ? '🇬🇧' : 
+                           search.language === 'Hindi' ? '🇮🇳' : '🕉️'} {search.language}
+                        </Text>
+                      </View>
+                      <Text style={[styles.recentSearchTime, { color: colors.textTertiary }]}>
+                        {search.timestamp ? new Date(search.timestamp).toLocaleDateString() : ''}
+                      </Text>
+                    </View>
+                    <Text style={[styles.recentSearchQuestion, { color: colors.text }]} numberOfLines={2}>
+                      {search.question}
+                    </Text>
+                    {search.preview && (
+                      <Text style={[styles.recentSearchPreview, { color: colors.textSecondary }]} numberOfLines={2}>
+                        {search.preview}
+                      </Text>
+                    )}
+                    <View style={styles.recentSearchFooter}>
+                      <Icon name="repeat" size={14} color={colors.textSecondary} />
+                      <Text style={[styles.recentSearchAction, { color: colors.textSecondary }]}>
+                        Tap to search again
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -619,6 +712,72 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textAlign: 'center',
     fontFamily: 'System',
+  },
+  // Recent Searches Styles
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  recentSearchCard: {
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  recentSearchHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  languageBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  languageBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  recentSearchTime: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+  recentSearchQuestion: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 6,
+    lineHeight: 22,
+  },
+  recentSearchPreview: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 10,
+  },
+  recentSearchFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.05)',
+  },
+  recentSearchAction: {
+    fontSize: 12,
+    marginLeft: 6,
+    fontWeight: '500',
   },
   // Drawer Styles
   overlay: {
