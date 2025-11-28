@@ -171,7 +171,7 @@ const Textinput = ({navigation}) => {
           <Icon name="arrow-back" size={24} color="#1F1F1F" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Text Input</Text>
+          <Text style={styles.headerTitle}>Atharvanavira</Text>
         </View>
         <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
           <Icon name="account-circle" size={28} color="#1F1F1F" />
@@ -183,7 +183,7 @@ const Textinput = ({navigation}) => {
         <View style={styles.inputTypeContainer}>
           <View style={[styles.inputTypeButton, styles.textInputButton, styles.selectedInputType]}>
             <Ionicons name="chatbubble-outline" size={20} color={'#fff'} />
-            <Text style={[styles.inputTypeText, styles.selectedInputTypeText]}>Text Input</Text>
+            <Text style={[styles.inputTypeText, styles.selectedInputTypeText]}>Athravanavira</Text>
           </View>
         </View>
         <View style={styles.separator} />

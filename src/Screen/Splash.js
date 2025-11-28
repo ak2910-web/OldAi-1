@@ -94,7 +94,7 @@ const Splash = ({ navigation }) => {
         <LotusIcon />
         
         {/* Brand Name */}
-        <Text style={styles.brandName}>VedAI</Text>
+        <Text style={styles.brandName}>Athravanavira</Text>
         
         {/* Tagline */}
         <Text style={styles.tagline}>

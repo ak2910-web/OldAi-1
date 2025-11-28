@@ -91,7 +91,7 @@ const About = ({ navigation }) => {
         >
           <Icon name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>About VedAI</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>About Athravanavira</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -124,7 +124,7 @@ const About = ({ navigation }) => {
                 <MaterialIcons name="calculate" size={48} color="#fff" />
               </LinearGradient>
             </View>
-            <Text style={[styles.heroTitle, { color: colors.text }]}>VedAI</Text>
+            <Text style={[styles.heroTitle, { color: colors.text }]}>Athravanavira</Text>
             <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
               Your AI-Powered Vedic Mathematics Companion
             </Text>
@@ -143,7 +143,7 @@ const About = ({ navigation }) => {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Our Mission</Text>
           </View>
           <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
-            VedAI bridges ancient Vedic mathematical wisdom with cutting-edge AI technology. 
+            Athravanavira bridges ancient Vedic mathematical wisdom with cutting-edge AI technology. 
             We make powerful mental calculation techniques accessible to everyone, helping students 
             and enthusiasts master mathematics through time-tested methods.
           </Text>
@@ -254,10 +254,10 @@ const About = ({ navigation }) => {
         {/* Version Info */}
         <View style={styles.footer}>
           <Text style={[styles.versionText, { color: colors.textSecondary }]}>
-            VedAI Version 1.0.0
+            Athravanavira Version 1.0.0
           </Text>
           <Text style={[styles.copyrightText, { color: colors.textSecondary }]}>
-            © 2024 VedAI. All rights reserved.
+            © 2024 Athravanavira. All rights reserved.
           </Text>
         </View>
       </ScrollView>

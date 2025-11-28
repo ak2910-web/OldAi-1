@@ -223,7 +223,7 @@ const Homescreen = ({navigation}) => {
         >
           {/* Drawer Header */}
           <View style={styles.drawerHeader}>
-            <Text style={styles.drawerTitle}>VedAI</Text>
+            <Text style={styles.drawerTitle}>Athravanavira</Text>
             <TouchableOpacity onPress={toggleDrawer} style={styles.closeDrawer}>
               <Icon name="x" size={24} color="white" />
             </TouchableOpacity>
@@ -348,7 +348,7 @@ const Homescreen = ({navigation}) => {
               <Icon name="menu" size={24} color="white" />
             </TouchableOpacity>
             <View style={styles.headerTextContainer}>
-              <Text style={styles.welcomeText}>VedAI</Text>
+              <Text style={styles.welcomeText}>Athravanavira</Text>
             </View>
             <TouchableOpacity 
               style={styles.profileIconButton} 
@@ -439,7 +439,7 @@ const Homescreen = ({navigation}) => {
                 <View style={styles.quickAccessIconContainer}>
                   <Icon name="info" size={32} color={colors.textSecondary} />
                 </View>
-                <Text style={[styles.quickAccessTitle, { color: colors.text }]}>About VedAI</Text>
+                <Text style={[styles.quickAccessTitle, { color: colors.text }]}>About Athravanavira</Text>
                 <Text style={[styles.quickAccessSubtitle, { color: colors.textSecondary }]}>Our mission</Text>
               </TouchableOpacity>
             </View>

@@ -87,14 +87,20 @@ const FormattedText = ({ text, style, color }) => {
 
 const Output = ({ route, navigation }) => {
   const { result = '', prompt = '' } = route.params || {};
+  // Defensive: always treat result as string
+  let safeResult = typeof result === 'string' ? result : JSON.stringify(result || '');
+  // Replace double newlines with single newline for better formatting
+  safeResult = safeResult.replace(/\n\n/g, '\n');
+
+  // MathView removed: fallback to plain text only
   const { colors, isDarkMode } = useTheme();
   const [copied, setCopied] = useState(false);
 
   // Debug logging
   console.log('📄 Output screen loaded');
-  console.log('📝 Prompt:', prompt?.substring(0, 50));
-  console.log('📊 Result length:', result?.length);
-  console.log('🔍 Result preview:', result?.substring(0, 200));
+  console.log('📝 Prompt:', (prompt || '').substring(0, 50));
+  console.log('📊 Result length:', (safeResult || '').length);
+  console.log('🔍 Result preview:', (safeResult || '').substring(0, 200));
 
   // Parse the new comparison format response
   const parseComparisonResponse = (text) => {
@@ -254,7 +260,7 @@ const Output = ({ route, navigation }) => {
     }
   };
 
-  const sections = parseComparisonResponse(result);
+  const sections = parseComparisonResponse(safeResult);
   
   // Debug parsed sections
   console.log('🔍 Parsed sections:');
@@ -266,7 +272,7 @@ const Output = ({ route, navigation }) => {
   console.log('  - Connection:', sections.howTheyRelate ? '✅' : '❌', sections.howTheyRelate?.length);
 
   const copyToClipboard = () => {
-    Clipboard.setString(result);
+    Clipboard.setString(safeResult);
     setCopied(true);
     Alert.alert('Copied!', 'Answer copied to clipboard');
     setTimeout(() => setCopied(false), 2000);
@@ -281,7 +287,7 @@ const Output = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Icon name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Ancient ⚡ Modern</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Atharvanavira</Text>
         <TouchableOpacity onPress={copyToClipboard} style={styles.headerButton}>
           <Icon name={copied ? 'check' : 'content-copy'} size={24} color={colors.text} />
         </TouchableOpacity>
@@ -657,15 +663,15 @@ const Output = ({ route, navigation }) => {
         )}
 
         {/* Fallback: Show raw text if no sections parsed */}
-        {!sections.mainTopic && !sections.sanskritName && !sections.modernName && result && (
+        {!sections.mainTopic && !sections.sanskritName && !sections.modernName && safeResult && (
           <View style={[styles.fallbackContainer, { backgroundColor: colors.surface }]}>
             <View style={styles.fallbackHeader}>
               <Icon name="info-outline" size={24} color="#FF9500" />
               <Text style={[styles.fallbackTitle, { color: colors.text }]}>Response</Text>
             </View>
-            <View style={[styles.fallbackContent, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF8E7' }]}>
+            <View style={[styles.fallbackContent, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF8E7' }]}> 
               <Text style={[styles.fallbackText, { color: colors.text }]} selectable>
-                {result}
+                {safeResult}
               </Text>
             </View>
           </View>
