@@ -16,14 +16,19 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { getResonance } from '../api/api';
 import { saveConversation } from '../services/firebaseService';
 import FooterNavigation from '../components/FooterNavigation';
+import { useTheme } from '../context/ThemeContext.js';
+import ProfileIcon from '../components/ProfileIcon';
+import auth from '@react-native-firebase/auth';
 
-const Textinput = ({navigation}) => {
+const Textinput = ({navigation, colors, isDarkMode}) => {
+  const themedStyles = styles(colors);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [currentUser, setCurrentUser] = useState(null);
 
   const languages = [
     { code: 'en', name: 'English', icon: '🇬🇧' },
@@ -63,6 +68,12 @@ const Textinput = ({navigation}) => {
     };
   }, [loading]);
 
+  useEffect(() => {
+    const unsubscribe = auth().onAuthStateChanged(user => {
+      setCurrentUser(user);
+    });
+    return unsubscribe;
+  }, []);
 
   const examples = [
     'How to find square of 45 using Vedic method?',
@@ -138,68 +149,47 @@ const Textinput = ({navigation}) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Loading Modal */}
-      <Modal
-        visible={loading}
-        transparent={true}
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <ActivityIndicator size="large" color="#FF9500" />
-            <Text style={styles.modalTitle}>{loadingMessage}</Text>
-            <Text style={styles.modalTimer}>{elapsedTime}s elapsed</Text>
-            <Text style={styles.modalHint}>
-              Generating comprehensive ancient vs modern comparison...
-            </Text>
-            <View style={styles.progressBar}>
-              <View 
-                style={[
-                  styles.progressFill, 
-                  { width: `${Math.min((elapsedTime / 30) * 100, 95)}%` }
-                ]} 
-              />
-            </View>
-          </View>
-        </View>
-      </Modal>
-
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
-          <Icon name="arrow-back" size={24} color="#1F1F1F" />
+      <View style={[themedStyles.header, { backgroundColor: colors.surface }]}> 
+        <TouchableOpacity onPress={() => navigation.goBack()} style={themedStyles.headerButton}>
+          <Icon name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Atharvanavira</Text>
+        <View style={themedStyles.headerContent}>
+          <Text style={[themedStyles.headerTitle, { color: colors.text }]}>Atharvanavira</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={styles.headerButton}>
-          <Icon name="account-circle" size={28} color="#1F1F1F" />
+        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={themedStyles.headerButton}>
+          <ProfileIcon
+            size={32}
+            name={currentUser?.displayName || 'Guest'}
+            imageUri={currentUser?.photoURL}
+            isGuest={!currentUser}
+          />
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
         {/* Input Type (text only) + separator */}
-        <View style={styles.inputTypeContainer}>
-          <View style={[styles.inputTypeButton, styles.textInputButton, styles.selectedInputType]}>
+        <View style={themedStyles.inputTypeContainer}>
+          <View style={[themedStyles.inputTypeButton, themedStyles.textInputButton, themedStyles.selectedInputType]}>
             <Ionicons name="chatbubble-outline" size={20} color={'#fff'} />
-            <Text style={[styles.inputTypeText, styles.selectedInputTypeText]}>Athravanavira</Text>
+            <Text style={[themedStyles.inputTypeText, themedStyles.selectedInputTypeText]}>Athravanavira</Text>
           </View>
         </View>
-        <View style={styles.separator} />
+        <View style={themedStyles.separator} />
 
         {/* Language Selection */}
-        <View style={styles.languageContainer}>
-          <Text style={styles.sectionLabel}>Language</Text>
+        <View style={themedStyles.languageContainer}>
+          <Text style={themedStyles.sectionLabel}>Language</Text>
           <TouchableOpacity 
-            style={styles.languageSelector}
+            style={themedStyles.languageSelector}
             onPress={() => setShowLanguageModal(true)}
           >
-            <View style={styles.languageDisplay}>
-              <Text style={styles.languageIcon}>
+            <View style={themedStyles.languageDisplay}>
+              <Text style={themedStyles.languageIcon}>
                 {languages.find(l => l.name === selectedLanguage)?.icon}
               </Text>
-              <Text style={styles.languageText}>{selectedLanguage}</Text>
+              <Text style={themedStyles.languageText}>{selectedLanguage}</Text>
             </View>
             <Ionicons name="chevron-down" size={20} color="#666" />
           </TouchableOpacity>
@@ -212,10 +202,10 @@ const Textinput = ({navigation}) => {
           animationType="slide"
           onRequestClose={() => setShowLanguageModal(false)}
         >
-          <View style={styles.languageModalOverlay}>
-            <View style={styles.languageModalContent}>
-              <View style={styles.languageModalHeader}>
-                <Text style={styles.languageModalTitle}>Select Language</Text>
+          <View style={themedStyles.languageModalOverlay}>
+            <View style={themedStyles.languageModalContent}>
+              <View style={themedStyles.languageModalHeader}>
+                <Text style={themedStyles.languageModalTitle}>Select Language</Text>
                 <TouchableOpacity onPress={() => setShowLanguageModal(false)}>
                   <Icon name="close" size={24} color="#333" />
                 </TouchableOpacity>
@@ -224,18 +214,18 @@ const Textinput = ({navigation}) => {
                 <TouchableOpacity
                   key={language.code}
                   style={[
-                    styles.languageOption,
-                    selectedLanguage === language.name && styles.languageOptionSelected
+                    themedStyles.languageOption,
+                    selectedLanguage === language.name && themedStyles.languageOptionSelected
                   ]}
                   onPress={() => {
                     setSelectedLanguage(language.name);
                     setShowLanguageModal(false);
                   }}
                 >
-                  <Text style={styles.languageOptionIcon}>{language.icon}</Text>
+                  <Text style={themedStyles.languageOptionIcon}>{language.icon}</Text>
                   <Text style={[
-                    styles.languageOptionText,
-                    selectedLanguage === language.name && styles.languageOptionTextSelected
+                    themedStyles.languageOptionText,
+                    selectedLanguage === language.name && themedStyles.languageOptionTextSelected
                   ]}>
                     {language.name}
                   </Text>
@@ -249,10 +239,10 @@ const Textinput = ({navigation}) => {
         </Modal>
 
         {/* Query Input */}
-        <View style={styles.queryContainer}>
-          <Text style={styles.sectionLabel}>Your Question</Text>
+        <View style={themedStyles.queryContainer}>
+          <Text style={themedStyles.sectionLabel}>Your Question</Text>
           <TextInput
-            style={styles.queryInput}
+            style={themedStyles.queryInput}
             placeholder="Ask about Vedic mathematics methods, sutras, or techniques..."
             placeholderTextColor="#999"
             multiline
@@ -263,22 +253,22 @@ const Textinput = ({navigation}) => {
         </View>
 
         {/* Examples Section */}
-        <View style={styles.examplesContainer}>
-          <Text style={styles.examplesTitle}>Try these examples:</Text>
+        <View style={themedStyles.examplesContainer}>
+          <Text style={themedStyles.examplesTitle}>Try these examples:</Text>
           {examples.map((example, index) => (
             <TouchableOpacity
               key={index}
-              style={styles.exampleButton}
+              style={themedStyles.exampleButton}
               onPress={() => setQuery(example)}
             >
-              <Text style={styles.exampleText}>{example}</Text>
+              <Text style={themedStyles.exampleText}>{example}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Generate Button */}
         <TouchableOpacity 
-          style={[styles.generateButton, loading && styles.generateButtonDisabled]} 
+          style={[themedStyles.generateButton, loading && themedStyles.generateButtonDisabled]} 
           onPress={handleGenerate}
           disabled={loading || !query.trim()}
         >
@@ -286,22 +276,22 @@ const Textinput = ({navigation}) => {
             <ActivityIndicator color="#fff" />
           ) : (
             <>
-              <Ionicons name="sparkles" size={20} color="#fff" style={styles.generateIcon} />
-              <Text style={styles.generateText}>Generate Explanation</Text>
+              <Ionicons name="sparkles" size={20} color="#fff" style={themedStyles.generateIcon} />
+              <Text style={themedStyles.generateText}>Generate Explanation</Text>
             </>
           )}
         </TouchableOpacity>
 
         {/* Tips Section */}
-        <View style={styles.tipsContainer}>
-          <View style={styles.tipsHeader}>
+        <View style={themedStyles.tipsContainer}>
+          <View style={themedStyles.tipsHeader}>
             <Ionicons name="bulb-outline" size={20} color="#F59E0B" />
-            <Text style={styles.tipsTitle}>Tips for better results:</Text>
+            <Text style={themedStyles.tipsTitle}>Tips for better results:</Text>
           </View>
           {tips.map((tip, index) => (
-            <View key={index} style={styles.tipItem}>
-              <View style={styles.tipBullet} />
-              <Text style={styles.tipText}>{tip}</Text>
+            <View key={index} style={themedStyles.tipItem}>
+              <View style={themedStyles.tipBullet} />
+              <Text style={themedStyles.tipText}>{tip}</Text>
             </View>
           ))}
         </View>
@@ -309,14 +299,40 @@ const Textinput = ({navigation}) => {
 
       {/* Footer Navigation */}
       <FooterNavigation />
+
+      {/* Loading Modal */}
+      <Modal
+        visible={loading}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={themedStyles.modalOverlay}>
+          <View style={themedStyles.modalContent}>
+            <ActivityIndicator size="large" color="#FF9500" />
+            <Text style={themedStyles.modalTitle}>{loadingMessage}</Text>
+            <Text style={themedStyles.modalTimer}>{elapsedTime}s elapsed</Text>
+            <Text style={themedStyles.modalHint}>
+              Generating comprehensive ancient vs modern comparison...
+            </Text>
+            <View style={themedStyles.progressBar}>
+              <View 
+                style={[
+                  themedStyles.progressFill, 
+                  { width: `${Math.min((elapsedTime / 30) * 100, 95)}%` }
+                ]} 
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
+const styles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5DC',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -603,4 +619,7 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Textinput
+export default (props) => {
+  const { colors, isDarkMode } = useTheme();
+  return <Textinput {...props} colors={colors} isDarkMode={isDarkMode} />;
+};

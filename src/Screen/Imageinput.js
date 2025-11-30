@@ -115,7 +115,7 @@ const Imageinput = ({ navigation }) => {
           <Icon name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Smart Input</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}> Athravanavira</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             {inputMode === 'image' ? 'Analyze Images' : 'Ask Questions'}
           </Text>

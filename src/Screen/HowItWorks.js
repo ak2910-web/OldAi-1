@@ -188,7 +188,7 @@ const HowItWorks = ({ navigation }) => {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Getting Started</Text>
           </View>
           <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
-            VedAI makes learning Vedic mathematics simple and interactive. Follow these 
+            Athravanavira makes learning Vedic mathematics simple and interactive. Follow these 
             steps to unlock the power of ancient Indian mathematical techniques.
           </Text>
         </Animated.View>

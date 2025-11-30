@@ -14,6 +14,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
+import { formatResponse } from '../api/api';
 
 const { width } = Dimensions.get('window');
 
@@ -85,6 +86,7 @@ const FormattedText = ({ text, style, color }) => {
   );
 };
 
+
 const Output = ({ route, navigation }) => {
   const { result = '', prompt = '' } = route.params || {};
   // Defensive: always treat result as string
@@ -95,6 +97,9 @@ const Output = ({ route, navigation }) => {
   // MathView removed: fallback to plain text only
   const { colors, isDarkMode } = useTheme();
   const [copied, setCopied] = useState(false);
+
+  // For short/expandable results
+  const [showFull, setShowFull] = useState(false);
 
   // Debug logging
   console.log('📄 Output screen loaded');
@@ -278,6 +283,15 @@ const Output = ({ route, navigation }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Helper to shorten text to N lines or chars
+  const getShortText = (text, maxLines = 4, maxChars = 350) => {
+    if (!text) return '';
+    const lines = text.split('\n');
+    let short = lines.slice(0, maxLines).join('\n');
+    if (short.length > maxChars) short = short.slice(0, maxChars) + '...';
+    return short;
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} backgroundColor={colors.surface} />
@@ -324,7 +338,7 @@ const Output = ({ route, navigation }) => {
           </View>
         ) : null}
 
-        {/* Ancient Vedic Perspective - Premium Card */}
+        {/* Ancient Vedic Perspective - Premium Card (Shortened) */}
         <View style={styles.perspectiveSection}>
           <View style={styles.perspectiveHeader}>
             <LinearGradient
@@ -336,12 +350,12 @@ const Output = ({ route, navigation }) => {
               <Icon name="wb-sunny" size={20} color="#fff" />
               <Text style={styles.perspectiveBadgeText}>Ancient Vedic</Text>
             </LinearGradient>
-            <Text style={[styles.perspectiveSubtitle, { color: colors.textSecondary }]}>
+            <Text style={[styles.perspectiveSubtitle, { color: colors.textSecondary }]}> 
               From the Sacred Texts of India
             </Text>
           </View>
 
-          <View style={[styles.perspectiveCard, { backgroundColor: colors.surface }]}>
+          <View style={[styles.perspectiveCard, { backgroundColor: colors.surface }]}> 
             {/* Sanskrit Name */}
             {sections.sanskritName ? (
               <View style={styles.premiumBlock}>
@@ -349,9 +363,9 @@ const Output = ({ route, navigation }) => {
                   <View style={[styles.blockDot, { backgroundColor: '#FF9500' }]} />
                   <Text style={[styles.blockLabel, { color: '#FF9500' }]}>Sanskrit Name</Text>
                 </View>
-                <View style={[styles.sanskritContainer, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF8E7' }]}>
-                  <Text style={[styles.sanskritText, { color: colors.text }]}>
-                    {sections.sanskritName}
+                <View style={[styles.sanskritContainer, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF8E7' }]}> 
+                  <Text style={[styles.sanskritText, { color: colors.text }]}> 
+                    {getShortText(sections.sanskritName)}
                   </Text>
                 </View>
               </View>
@@ -364,8 +378,14 @@ const Output = ({ route, navigation }) => {
                   <View style={[styles.blockDot, { backgroundColor: '#FF9500' }]} />
                   <Text style={[styles.blockLabel, { color: '#FF9500' }]}>Historical Context</Text>
                 </View>
-                <Text style={[styles.premiumText, { color: colors.textSecondary }]}>
-                  {sections.historicalContext}
+                <Text style={[styles.premiumText, { color: colors.textSecondary }]}> 
+                  {getShortText(sections.historicalContext)}
+                  {sections.historicalContext.length > 350 && !showFull && (
+                    <Text style={{ color: '#FF9500' }} onPress={() => setShowFull(true)}> Show More</Text>
+                  )}
+                  {showFull && sections.historicalContext.length > 350 && (
+                    <Text>\n{sections.historicalContext}</Text>
+                  )}
                 </Text>
               </View>
             ) : null}
@@ -377,8 +397,14 @@ const Output = ({ route, navigation }) => {
                   <View style={[styles.blockDot, { backgroundColor: '#FF9500' }]} />
                   <Text style={[styles.blockLabel, { color: '#FF9500' }]}>Ancient Understanding</Text>
                 </View>
-                <Text style={[styles.premiumText, { color: colors.textSecondary }]}>
-                  {sections.vedicExplanation}
+                <Text style={[styles.premiumText, { color: colors.textSecondary }]}> 
+                  {getShortText(sections.vedicExplanation)}
+                  {sections.vedicExplanation.length > 350 && !showFull && (
+                    <Text style={{ color: '#FF9500' }} onPress={() => setShowFull(true)}> Show More</Text>
+                  )}
+                  {showFull && sections.vedicExplanation.length > 350 && (
+                    <Text>\n{sections.vedicExplanation}</Text>
+                  )}
                 </Text>
               </View>
             ) : null}
@@ -390,13 +416,13 @@ const Output = ({ route, navigation }) => {
                   <View style={[styles.blockDot, { backgroundColor: '#FF9500' }]} />
                   <Text style={[styles.blockLabel, { color: '#FF9500' }]}>Original Formula</Text>
                 </View>
-                <View style={[styles.premiumFormulaBox, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF8E7' }]}>
+                <View style={[styles.premiumFormulaBox, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF8E7' }]}> 
                   <LinearGradient
                     colors={['#FF9500', '#FF6B00']}
                     style={styles.formulaBorder}
                   />
                   <FormattedText 
-                    text={sections.originalFormula}
+                    text={getShortText(sections.originalFormula, 2, 100)}
                     style={[styles.formulaText, { color: colors.text }]}
                     color={colors.text}
                   />
@@ -411,10 +437,10 @@ const Output = ({ route, navigation }) => {
                   <View style={[styles.blockDot, { backgroundColor: '#FF9500' }]} />
                   <Text style={[styles.blockLabel, { color: '#FF9500' }]}>Practical Example</Text>
                 </View>
-                <View style={[styles.premiumExampleBox, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF9F0' }]}>
+                <View style={[styles.premiumExampleBox, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF9F0' }]}> 
                   <Icon name="calculate" size={20} color="#FF9500" style={styles.exampleIcon} />
                   <FormattedText 
-                    text={sections.vedicExample}
+                    text={getShortText(sections.vedicExample, 2, 120)}
                     style={[styles.exampleText, { color: colors.textSecondary }]}
                     color={colors.textSecondary}
                   />
@@ -662,7 +688,7 @@ const Output = ({ route, navigation }) => {
           </View>
         )}
 
-        {/* Fallback: Show raw text if no sections parsed */}
+        {/* Fallback: Show raw text if no sections parsed (Shortened) */}
         {!sections.mainTopic && !sections.sanskritName && !sections.modernName && safeResult && (
           <View style={[styles.fallbackContainer, { backgroundColor: colors.surface }]}>
             <View style={styles.fallbackHeader}>
@@ -671,7 +697,10 @@ const Output = ({ route, navigation }) => {
             </View>
             <View style={[styles.fallbackContent, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF8E7' }]}> 
               <Text style={[styles.fallbackText, { color: colors.text }]} selectable>
-                {safeResult}
+                {showFull ? formatResponse(safeResult) : getShortText(formatResponse(safeResult))}
+                {formatResponse(safeResult).length > 350 && !showFull && (
+                  <Text style={{ color: '#FF9500' }} onPress={() => setShowFull(true)}> Show More</Text>
+                )}
               </Text>
             </View>
           </View>

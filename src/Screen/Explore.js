@@ -25,7 +25,8 @@ const discoveries = [
     category: 'Mathematics',
     categoryColor: '#FF9500',
     icon: 'circle',
-    image: require('./zero.png'),
+    // image: require('./zero.png'),
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/0-Indian.svg/1200px-0-Indian.svg.png',
     ancientInsight: 'Ancient Indian mathematicians introduced the concept of zero, a revolutionary idea that transformed mathematics and paved the way for modern computing.',
     modernResonance: 'Zero is the foundation of binary code, computer science, and digital technology.',
     gradient: ['#FFF8E7', '#FFE4B5'],
@@ -36,6 +37,8 @@ const discoveries = [
     category: 'Science',
     categoryColor: '#3B82F6',
     icon: 'cpu',
+    // image: require('./atom.png'),
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/6/6f/Atom_diagram.png',
     ancientInsight: "The Vedic texts described the concept of 'Anu,' the smallest indivisible particle of matter, remarkably similar to the modern atomic theory.",
     modernResonance: 'Modern physics confirms atoms as the building blocks of all matter.',
     gradient: ['#E0F2FE', '#DBEAFE'],
@@ -46,6 +49,8 @@ const discoveries = [
     category: 'Medicine',
     categoryColor: '#10B981',
     icon: 'heart',
+    // image: require('./ayurveda.png'),
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Ayurveda.jpg',
     ancientInsight: 'Ayurveda, an ancient Indian system of medicine, emphasizes holistic healing, focusing on the balance of mind, body, and spirit, influencing modern integrative medicine.',
     modernResonance: 'Modern medicine increasingly adopts holistic and preventive care approaches.',
     gradient: ['#F0FDF4', '#DCFCE7'],
@@ -56,6 +61,8 @@ const discoveries = [
     category: 'Astronomy',
     categoryColor: '#8B5CF6',
     icon: 'moon',
+    // image: require('./yuga.png'),
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/2/2c/Yuga_Cycles.png',
     ancientInsight: 'Vedic astronomy described cosmic cycles and the movement of celestial bodies with remarkable accuracy, influencing our understanding of the universe.',
     modernResonance: 'Modern cosmology confirms cyclical patterns in the universe.',
     gradient: ['#F5F3FF', '#EDE9FE'],
@@ -66,6 +73,8 @@ const discoveries = [
     category: 'Wellness',
     categoryColor: '#EC4899',
     icon: 'activity',
+    // image: require('./yoga.png'),
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Yoga_asana.jpg',
     ancientInsight: 'Ancient yogic practices unified physical, mental, and spiritual health through systematic exercises and meditation.',
     modernResonance: 'Yoga is now a globally recognized practice for mental health, stress relief, and physical fitness.',
     gradient: ['#FDF2F8', '#FCE7F3'],
@@ -76,6 +85,8 @@ const discoveries = [
     category: 'Mathematics',
     categoryColor: '#FF9500',
     icon: 'hash',
+    // image: require('./decimal.png'),
+    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/2/2b/Decimal_system.png',
     ancientInsight: 'Indian mathematicians developed the decimal system and place-value notation, revolutionizing numerical calculations.',
     modernResonance: 'The decimal system is the global standard for mathematics, science, and commerce.',
     gradient: ['#FFF8E7', '#FFE4B5'],
@@ -88,8 +99,8 @@ const Explore = ({ navigation }) => {
 
   // Hero section fade animation
   const heroOpacity = scrollY.interpolate({
-    inputRange: [0, 100, 150],
-    outputRange: [1, 0.5, 0],
+    inputRange: [0, 100, 150, 300],
+    outputRange: [1, 0.7, 0.4, 0.2],
     extrapolate: 'clamp',
   });
 
@@ -108,14 +119,14 @@ const Explore = ({ navigation }) => {
     const inputRange = [-1, 0, index * 250, (index + 2) * 250];
     const scale = scrollY.interpolate({
       inputRange,
-      outputRange: [1, 1, 1, 0.95],
+      outputRange: [1, 1, 1, 0.98], // less aggressive fade/scale
+      extrapolate: 'clamp',
     });
-
     const opacity = scrollY.interpolate({
       inputRange,
-      outputRange: [1, 1, 1, 0.7],
+      outputRange: [1, 1, 1, 0.85], // less aggressive fade
+      extrapolate: 'clamp',
     });
-
     return (
       <Animated.View
         style={[
@@ -126,17 +137,23 @@ const Explore = ({ navigation }) => {
           },
         ]}
       >
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}> 
           {/* Image */}
           <LinearGradient
             colors={isDarkMode ? ['#1F2937', '#374151'] : item.gradient}
-            style={styles.imageContainer}
+            style={[styles.imageContainer, { borderWidth: 1, borderColor: 'red', backgroundColor: '#eee' }]}
           >
-            {item.image ? (
-              <Image source={item.image} style={styles.cardImage} resizeMode="cover" />
+            {item.imageUrl ? (
+              <Image 
+                source={{ uri: item.imageUrl }} 
+                style={styles.cardImage} 
+                resizeMode="cover" 
+                accessibilityLabel={item.title} 
+                onError={e => { console.log('Image failed to load:', item.imageUrl, e.nativeEvent); }}
+              />
             ) : (
-              <View style={styles.imagePlaceholder}>
-                <Icon name={item.icon} size={48} color={item.categoryColor} opacity={0.5} />
+              <View style={[styles.imagePlaceholder, { borderWidth: 1, borderColor: 'blue', backgroundColor: '#ccc' }]}> 
+                <Icon name={item.icon} size={48} color={item.categoryColor} style={{ opacity: 0.5 }} />
               </View>
             )}
           </LinearGradient>

@@ -29,3 +29,5 @@
     "serve": "firebase emulators:start",
     "deploy": "firebase deploy --only functions",
     "deploy:prod": "firebase deploy --only functions --project=your-prod-project-id"
+  }
+}
