@@ -15,6 +15,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
 import { formatResponse } from '../api/api';
+import { parseAIResponse, stripMarkdown, formatForDisplay } from '../utils/textParser';
 
 const { width } = Dimensions.get('window');
 
@@ -88,11 +89,42 @@ const FormattedText = ({ text, style, color }) => {
 
 
 const Output = ({ route, navigation }) => {
-  const { result = '', prompt = '' } = route.params || {};
+  const { 
+    result = '', 
+    prompt = '', 
+    questionType = 'misc',
+    sections: apiSections = {},
+    processingTime = 0 
+  } = route.params || {};
+  
   // Defensive: always treat result as string
   let safeResult = typeof result === 'string' ? result : JSON.stringify(result || '');
-  // Replace double newlines with single newline for better formatting
-  safeResult = safeResult.replace(/\n\n/g, '\n');
+  
+  // Map API section names to UI section names
+  const mapApiSections = (sections) => {
+    if (!sections || Object.keys(sections).length === 0) return null;
+    
+    return {
+      concept: sections.concept || '',
+      sutra: sections.vedic_sutra || sections.sutra || '',
+      sanskritName: sections.sanskrit_meaning || sections.sanskritName || '',
+      vedicMethod: sections.steps_vedic_method || sections.revised_steps_vedic_method_illustrating_the_principle || '',
+      modernMethod: sections.modern_method || sections.modernMethod || '',
+      comparison: sections.comparison || '',
+      finalAnswer: sections.final_answer || sections.finalAnswer || '',
+      formula: sections.formula || '',
+      steps: sections.steps || sections.step_by_step || '',
+      explanation: sections.explanation || '',
+    };
+  };
+  
+  // Use sections from API if available, otherwise parse the result
+  const parsedSections = (apiSections && Object.keys(apiSections).length > 0) 
+    ? mapApiSections(apiSections)
+    : parseAIResponse(safeResult);
+  
+  console.log('🔍 API Sections received:', apiSections ? Object.keys(apiSections).filter(k => apiSections[k]) : 'none');
+  console.log('🔍 Mapped sections:', parsedSections ? Object.keys(parsedSections).filter(k => parsedSections[k]) : 'none');
 
   // MathView removed: fallback to plain text only
   const { colors, isDarkMode } = useTheme();
@@ -103,9 +135,30 @@ const Output = ({ route, navigation }) => {
 
   // Debug logging
   console.log('📄 Output screen loaded');
+   console.log('📦 Full route.params:', JSON.stringify(route.params, null, 2));
   console.log('📝 Prompt:', (prompt || '').substring(0, 50));
+  console.log('📊 Result type:', typeof result);
   console.log('📊 Result length:', (safeResult || '').length);
   console.log('🔍 Result preview:', (safeResult || '').substring(0, 200));
+  console.log('🏷️ Question Type:', questionType);
+  console.log('📦 Sections received:', apiSections);
+  console.log('⏱️ Processing Time:', processingTime, 'ms');
+  
+  // Question type labels and icons
+  const questionTypeLabels = {
+    vedic: { label: 'Vedic Math', icon: '🕉️', color: '#FF9500' },
+    arithmetic: { label: 'Arithmetic', icon: '🔢', color: '#3B82F6' },
+    algebra: { label: 'Algebra', icon: '📐', color: '#10B981' },
+    geometry: { label: 'Geometry', icon: '△', color: '#8B5CF6' },
+    trigonometry: { label: 'Trigonometry', icon: '📊', color: '#EC4899' },
+    formula: { label: 'Formula', icon: '∑', color: '#F59E0B' },
+    concept: { label: 'Concept', icon: '💡', color: '#06B6D4' },
+    word_problem: { label: 'Word Problem', icon: '📝', color: '#14B8A6' },
+    history: { label: 'History', icon: '📜', color: '#A855F7' },
+    misc: { label: 'General', icon: '📚', color: '#6B7280' }
+  };
+  
+  const typeInfo = questionTypeLabels[questionType] || questionTypeLabels.misc;
 
   // Parse the new comparison format response
   const parseComparisonResponse = (text) => {
@@ -265,9 +318,13 @@ const Output = ({ route, navigation }) => {
     }
   };
 
-  const sections = parseComparisonResponse(safeResult);
+  // Use API sections if available (from new hybrid engine), otherwise parse from text
+  const sections = Object.keys(apiSections).length > 0 
+    ? apiSections 
+    : parseComparisonResponse(safeResult);
   
   // Debug parsed sections
+  console.log('🔍 Using sections from:', Object.keys(apiSections).length > 0 ? 'API' : 'Parsed');
   console.log('🔍 Parsed sections:');
   console.log('  - Main Topic:', sections.mainTopic ? '✅' : '❌', sections.mainTopic?.substring(0, 50));
   console.log('  - Sanskrit Name:', sections.sanskritName ? '✅' : '❌', sections.sanskritName?.substring(0, 50));
@@ -283,10 +340,22 @@ const Output = ({ route, navigation }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // Utility to normalize newlines and collapse multiple newlines
+  const normalizeNewlines = (text) => {
+    if (!text) return '';
+    return text
+      .replace(/\\n|\\n\\n|\/n|\/n\/n/g, '\n') // Replace all escaped/literal newlines
+      .replace(/\n{3,}/g, '\n\n') // Collapse 3+ newlines to 2
+      .replace(/\n\s*\n/g, '\n\n') // Remove whitespace between newlines
+      .replace(/\s+$/gm, '') // Remove trailing spaces from each line
+      .trim();
+  };
+
   // Helper to shorten text to N lines or chars
   const getShortText = (text, maxLines = 4, maxChars = 350) => {
     if (!text) return '';
-    const lines = text.split('\n');
+    const clean = normalizeNewlines(text);
+    const lines = clean.split('\n');
     let short = lines.slice(0, maxLines).join('\n');
     if (short.length > maxChars) short = short.slice(0, maxChars) + '...';
     return short;
@@ -301,13 +370,169 @@ const Output = ({ route, navigation }) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerButton}>
           <Icon name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Atharvanavira</Text>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Atharvanavira</Text>
+          {/* Question Type Badge */}
+          <View style={[styles.typeBadge, { backgroundColor: typeInfo.color + '20' }]}>
+            <Text style={[styles.typeBadgeText, { color: typeInfo.color }]}>
+              {typeInfo.icon} {typeInfo.label}
+            </Text>
+          </View>
+        </View>
         <TouchableOpacity onPress={copyToClipboard} style={styles.headerButton}>
           <Icon name={copied ? 'check' : 'content-copy'} size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        
+        {/* Debug Info Card - Remove after testing */}
+        <View style={{margin: 16, padding: 16, backgroundColor: '#FEF3C7', borderRadius: 8}}>
+          <Text style={{fontSize: 12, color: '#92400E', fontWeight: 'bold'}}>🐛 Debug Info:</Text>
+          <Text style={{fontSize: 11, color: '#92400E', marginTop: 4}}>
+            Result: {safeResult ? 'YES ✓' : 'NO ✗'} ({safeResult?.length || 0} chars)
+          </Text>
+          <Text style={{fontSize: 11, color: '#92400E'}}>
+            Sections: {apiSections ? Object.keys(apiSections).length : 0} keys
+          </Text>
+          <Text style={{fontSize: 11, color: '#92400E'}}>
+            Parsed: {parsedSections ? Object.keys(parsedSections).filter(k => parsedSections[k]).length : 0} valid sections
+          </Text>
+          <Text style={{fontSize: 11, color: '#92400E'}}>
+            Type: {questionType}
+          </Text>
+        </View>
+
+        {/* Fallback: Show raw result if no sections */}
+        {(!parsedSections || Object.keys(parsedSections).filter(k => parsedSections[k]).length === 0) && safeResult && (
+          <View style={{margin: 16, padding: 16, backgroundColor: colors.surface, borderRadius: 12}}>
+            <Text style={[styles.cleanCardTitle, {color: colors.text, marginBottom: 12}]}>
+              📝 Response
+            </Text>
+            <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+              {formatForDisplay(safeResult)}
+            </Text>
+          </View>
+        )}
+        
+        {/* NEW: Clean structured cards using parsed sections */}
+        {parsedSections && (
+          <View style={{marginHorizontal: 16, marginTop: 16}}>
+            
+            {/* Concept Card */}
+            {parsedSections.concept && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="lightbulb-outline" size={24} color="#FF9500" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Concept</Text>
+                </View>
+                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+                  {formatForDisplay(parsedSections.concept)}
+                </Text>
+              </View>
+            )}
+            
+            {/* Vedic Sutra Card */}
+            {parsedSections.sutra && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="auto-awesome" size={24} color="#FF9500" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Vedic Sutra</Text>
+                </View>
+                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+                  {formatForDisplay(parsedSections.sutra)}
+                </Text>
+              </View>
+            )}
+            
+            {/* Sanskrit Name Card */}
+            {parsedSections.sanskritName && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Text style={{fontSize: 24}}>🕉️</Text>
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Meaning</Text>
+                </View>
+                <Text style={[styles.sanskritDisplayText, {color: '#FF9500'}]}>
+                  {formatForDisplay(parsedSections.sanskritName)}
+                </Text>
+              </View>
+            )}
+            
+            {/* Vedic Method Steps Card */}
+            {parsedSections.vedicMethod && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="format-list-numbered" size={24} color="#FF9500" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Vedic Method</Text>
+                </View>
+                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+                  {formatForDisplay(parsedSections.vedicMethod)}
+                </Text>
+              </View>
+            )}
+            
+            {/* Steps Card (if parsed as array) */}
+            {parsedSections.vedicSteps && parsedSections.vedicSteps.length > 0 && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="format-list-numbered" size={24} color="#3B82F6" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Steps (Vedic Method)</Text>
+                </View>
+                {parsedSections.vedicSteps.map((step, index) => (
+                  <View key={index} style={styles.stepItem}>
+                    <Text style={[styles.stepNumber, {color: '#3B82F6'}]}>Step {index + 1}</Text>
+                    <Text style={[styles.stepText, {color: colors.textSecondary}]}>
+                      {formatForDisplay(step)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            
+            {/* Modern Method Card */}
+            {parsedSections.modernMethod && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="calculate" size={24} color="#8B5CF6" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Modern Method</Text>
+                </View>
+                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+                  {formatForDisplay(parsedSections.modernMethod)}
+                </Text>
+              </View>
+            )}
+            
+            {/* Comparison Card */}
+            {parsedSections.comparison && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="compare-arrows" size={24} color="#EC4899" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Comparison</Text>
+                </View>
+                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+                  {formatForDisplay(parsedSections.comparison)}
+                </Text>
+              </View>
+            )}
+            
+            {/* Final Answer Card */}
+            {parsedSections.finalAnswer && (
+              <View style={[styles.cleanCard, {backgroundColor: isDarkMode ? '#1F2937' : '#FFF9E6', marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="check-circle" size={24} color="#10B981" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Final Answer</Text>
+                </View>
+                <Text style={[styles.finalAnswerText, {color: colors.text}]}>
+                  {formatForDisplay(parsedSections.finalAnswer)}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+        
+        {/* OLD: Keep existing sections as fallback if parsing fails */}
+        {!parsedSections && (
+          <>
         {/* Main Topic Hero - Premium Design */}
         {sections.mainTopic ? (
           <View style={styles.heroWrapper}>
@@ -365,7 +590,7 @@ const Output = ({ route, navigation }) => {
                 </View>
                 <View style={[styles.sanskritContainer, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF8E7' }]}> 
                   <Text style={[styles.sanskritText, { color: colors.text }]}> 
-                    {getShortText(sections.sanskritName)}
+                    {normalizeNewlines(sections.sanskritName)}
                   </Text>
                 </View>
               </View>
@@ -379,12 +604,12 @@ const Output = ({ route, navigation }) => {
                   <Text style={[styles.blockLabel, { color: '#FF9500' }]}>Historical Context</Text>
                 </View>
                 <Text style={[styles.premiumText, { color: colors.textSecondary }]}> 
-                  {getShortText(sections.historicalContext)}
+                  {normalizeNewlines(getShortText(sections.historicalContext))}
                   {sections.historicalContext.length > 350 && !showFull && (
                     <Text style={{ color: '#FF9500' }} onPress={() => setShowFull(true)}> Show More</Text>
                   )}
                   {showFull && sections.historicalContext.length > 350 && (
-                    <Text>\n{sections.historicalContext}</Text>
+                    <Text>\n{normalizeNewlines(sections.historicalContext)}</Text>
                   )}
                 </Text>
               </View>
@@ -398,12 +623,12 @@ const Output = ({ route, navigation }) => {
                   <Text style={[styles.blockLabel, { color: '#FF9500' }]}>Ancient Understanding</Text>
                 </View>
                 <Text style={[styles.premiumText, { color: colors.textSecondary }]}> 
-                  {getShortText(sections.vedicExplanation)}
+                  {normalizeNewlines(getShortText(sections.vedicExplanation))}
                   {sections.vedicExplanation.length > 350 && !showFull && (
                     <Text style={{ color: '#FF9500' }} onPress={() => setShowFull(true)}> Show More</Text>
                   )}
                   {showFull && sections.vedicExplanation.length > 350 && (
-                    <Text>\n{sections.vedicExplanation}</Text>
+                    <Text>\n{normalizeNewlines(sections.vedicExplanation)}</Text>
                   )}
                 </Text>
               </View>
@@ -422,7 +647,7 @@ const Output = ({ route, navigation }) => {
                     style={styles.formulaBorder}
                   />
                   <FormattedText 
-                    text={getShortText(sections.originalFormula, 2, 100)}
+                    text={normalizeNewlines(sections.originalFormula)}
                     style={[styles.formulaText, { color: colors.text }]}
                     color={colors.text}
                   />
@@ -440,7 +665,7 @@ const Output = ({ route, navigation }) => {
                 <View style={[styles.premiumExampleBox, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF9F0' }]}> 
                   <Icon name="calculate" size={20} color="#FF9500" style={styles.exampleIcon} />
                   <FormattedText 
-                    text={getShortText(sections.vedicExample, 2, 120)}
+                    text={normalizeNewlines(sections.vedicExample)}
                     style={[styles.exampleText, { color: colors.textSecondary }]}
                     color={colors.textSecondary}
                   />
@@ -477,7 +702,7 @@ const Output = ({ route, navigation }) => {
                 </View>
                 <View style={[styles.modernNameContainer, { backgroundColor: isDarkMode ? '#1F2937' : '#EFF6FF' }]}>
                   <Text style={[styles.modernNameText, { color: colors.text }]}>
-                    {sections.modernName}
+                    {normalizeNewlines(sections.modernName)}
                   </Text>
                 </View>
               </View>
@@ -491,7 +716,7 @@ const Output = ({ route, navigation }) => {
                   <Text style={[styles.blockLabel, { color: '#3B82F6' }]}>Western Discovery</Text>
                 </View>
                 <Text style={[styles.premiumText, { color: colors.textSecondary }]}>
-                  {sections.westernDiscovery}
+                  {normalizeNewlines(sections.westernDiscovery)}
                 </Text>
               </View>
             ) : null}
@@ -504,7 +729,7 @@ const Output = ({ route, navigation }) => {
                   <Text style={[styles.blockLabel, { color: '#3B82F6' }]}>Modern Understanding</Text>
                 </View>
                 <Text style={[styles.premiumText, { color: colors.textSecondary }]}>
-                  {sections.modernExplanation}
+                  {normalizeNewlines(sections.modernExplanation)}
                 </Text>
               </View>
             ) : null}
@@ -522,7 +747,7 @@ const Output = ({ route, navigation }) => {
                     style={styles.formulaBorder}
                   />
                   <FormattedText 
-                    text={sections.modernFormula}
+                    text={normalizeNewlines(sections.modernFormula)}
                     style={[styles.formulaText, { color: colors.text }]}
                     color={colors.text}
                   />
@@ -540,7 +765,7 @@ const Output = ({ route, navigation }) => {
                 <View style={[styles.premiumExampleBox, { backgroundColor: isDarkMode ? '#1F2937' : '#F0F9FF' }]}>
                   <Icon name="calculate" size={20} color="#3B82F6" style={styles.exampleIcon} />
                   <FormattedText 
-                    text={sections.modernExample}
+                    text={normalizeNewlines(sections.modernExample)}
                     style={[styles.exampleText, { color: colors.textSecondary }]}
                     color={colors.textSecondary}
                   />
@@ -578,7 +803,7 @@ const Output = ({ route, navigation }) => {
                   <View style={[styles.relationBox, { backgroundColor: isDarkMode ? '#1F2937' : '#F5F3FF' }]}>
                     <Icon name="shuffle" size={20} color="#8B5CF6" style={styles.relationIcon} />
                     <Text style={[styles.premiumText, { color: colors.textSecondary }]}>
-                      {sections.howTheyRelate}
+                      {normalizeNewlines(sections.howTheyRelate)}
                     </Text>
                   </View>
                 </View>
@@ -596,7 +821,7 @@ const Output = ({ route, navigation }) => {
                   >
                     <Icon name="emoji-events" size={28} color="#FFD700" style={styles.trophyIcon} />
                     <Text style={[styles.advantageText, { color: colors.text }]}>
-                      {sections.whyAncientWins}
+                      {normalizeNewlines(sections.whyAncientWins)}
                     </Text>
                   </LinearGradient>
                 </View>
@@ -609,7 +834,7 @@ const Output = ({ route, navigation }) => {
                     <Text style={[styles.blockLabel, { color: '#8B5CF6' }]}>Cultural Journey</Text>
                   </View>
                   <Text style={[styles.premiumText, { color: colors.textSecondary }]}>
-                    {sections.culturalContext}
+                    {normalizeNewlines(sections.culturalContext)}
                   </Text>
                 </View>
               ) : null}
@@ -642,13 +867,13 @@ const Output = ({ route, navigation }) => {
                   ]}
                 >
                   <View style={[styles.tableCell, { flex: 1 }]}>
-                    <Text style={[styles.tableCellTextBold, { color: colors.text }]}>{row.feature}</Text>
+                    <Text style={[styles.tableCellTextBold, { color: colors.text }]}>{normalizeNewlines(row.feature)}</Text>
                   </View>
                   <View style={[styles.tableCell, { flex: 1.5 }]}>
-                    <Text style={[styles.tableCellText, { color: colors.textSecondary }]}>{row.traditional}</Text>
+                    <Text style={[styles.tableCellText, { color: colors.textSecondary }]}>{normalizeNewlines(row.traditional)}</Text>
                   </View>
                   <View style={[styles.tableCell, { flex: 1.5 }]}>
-                    <Text style={[styles.tableCellText, { color: '#10B981' }]}>{row.vedic}</Text>
+                    <Text style={[styles.tableCellText, { color: '#10B981' }]}>{normalizeNewlines(row.vedic)}</Text>
                   </View>
                 </View>
               ))}
@@ -662,7 +887,7 @@ const Output = ({ route, navigation }) => {
             </View>
             <View style={[styles.comparisonTextContainer, { backgroundColor: isDarkMode ? '#1F2937' : '#FEF3C7' }]}>
               <Text style={[styles.comparisonParagraph, { color: colors.text }]}>
-                {sections.comparisonText}
+                {normalizeNewlines(sections.comparisonText)}
               </Text>
             </View>
           </View>
@@ -682,7 +907,7 @@ const Output = ({ route, navigation }) => {
             </View>
             <View style={[styles.applicationsContent, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF1F2' }]}>
               <Text style={[styles.applicationsText, { color: colors.textSecondary }]}>
-                {sections.realWorldApps}
+                {normalizeNewlines(sections.realWorldApps)}
               </Text>
             </View>
           </View>
@@ -697,7 +922,7 @@ const Output = ({ route, navigation }) => {
             </View>
             <View style={[styles.fallbackContent, { backgroundColor: isDarkMode ? '#1F2937' : '#FFF8E7' }]}> 
               <Text style={[styles.fallbackText, { color: colors.text }]} selectable>
-                {showFull ? formatResponse(safeResult) : getShortText(formatResponse(safeResult))}
+                {showFull ? normalizeNewlines(formatResponse(safeResult)) : normalizeNewlines(getShortText(formatResponse(safeResult)))}
                 {formatResponse(safeResult).length > 350 && !showFull && (
                   <Text style={{ color: '#FF9500' }} onPress={() => setShowFull(true)}> Show More</Text>
                 )}
@@ -721,6 +946,8 @@ const Output = ({ route, navigation }) => {
         </View>
 
         <View style={styles.bottomPadding} />
+        </>
+        )}
       </ScrollView>
 
       {/* Footer Navigation */}
@@ -752,6 +979,22 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
+    fontWeight: '600',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  typeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginTop: 2,
+  },
+  typeBadgeText: {
+    fontSize: 11,
     fontWeight: '600',
   },
   scrollView: {
@@ -1202,6 +1445,56 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 100,
+  },
+  
+  // NEW: Clean card styles
+  cleanCard: {
+    borderRadius: 16,
+    padding: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  },
+  cleanCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  cleanCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  cleanCardText: {
+    fontSize: 15,
+    lineHeight: 24,
+    fontWeight: '400',
+  },
+  sanskritDisplayText: {
+    fontSize: 20,
+    fontWeight: '600',
+    lineHeight: 32,
+    textAlign: 'center',
+  },
+  stepItem: {
+    marginBottom: 12,
+  },
+  stepNumber: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  stepText: {
+    fontSize: 14,
+    lineHeight: 22,
+    paddingLeft: 16,
+  },
+  finalAnswerText: {
+    fontSize: 16,
+    lineHeight: 26,
+    fontWeight: '600',
   },
 });
 

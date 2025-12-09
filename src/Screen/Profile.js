@@ -9,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  ScrollView,
 } from 'react-native';
 // LinearGradient removed — header uses simple View
 import Icon from 'react-native-vector-icons/Feather';
@@ -17,14 +18,27 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
 import ProfileIcon from '../components/ProfileIcon';
+import { getUserConversations } from '../services/firebaseService';
+import { getLocalConversations, getGuestStats } from '../services/localStorageService';
 
 const Profile = ({ navigation }) => {
   const { isDarkMode, colors, toggleTheme } = useTheme();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [stats, setStats] = useState({
+    totalConversations: 0,
+    textQuestions: 0,
+    imageQuestions: 0,
+    lastUsed: null,
+    memberSince: null,
+  });
 
   useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
     const currentUser = auth().currentUser;
     if (currentUser) {
       setUser({
@@ -32,20 +46,45 @@ const Profile = ({ navigation }) => {
         displayName: currentUser.displayName || 'VedAI User',
         photoURL: currentUser.photoURL || null,
       });
+      // Load user stats from Firestore
+      try {
+        const conversations = await getUserConversations(1000);
+        const textCount = conversations.filter(c => c.type === 'text').length;
+        const imageCount = conversations.filter(c => c.type === 'image').length;
+        
+        setStats({
+          totalConversations: conversations.length,
+          textQuestions: textCount,
+          imageQuestions: imageCount,
+          lastUsed: conversations[0]?.timestamp || conversations[0]?.createdAt,
+          memberSince: currentUser.metadata.creationTime,
+        });
+      } catch (error) {
+        console.error('Error loading stats:', error);
+      }
     } else {
       setUser(null);
+      // Load guest stats
+      const guestStats = await getGuestStats();
+      if (guestStats) {
+        setStats({
+          totalConversations: guestStats.totalQuestions || 0,
+          textQuestions: guestStats.totalTextQuestions || 0,
+          imageQuestions: guestStats.totalImageQuestions || 0,
+          lastUsed: guestStats.lastUsed,
+          memberSince: guestStats.firstUsed,
+        });
+      }
     }
     // load persisted notifications
-    (async () => {
-      try {
-        const notif = await AsyncStorage.getItem('@vedai:notifications');
-        if (notif !== null) setNotificationsEnabled(notif === 'true');
-      } catch (e) {
-        // ignore
-      }
-    })();
+    try {
+      const notif = await AsyncStorage.getItem('@vedai:notifications');
+      if (notif !== null) setNotificationsEnabled(notif === 'true');
+    } catch (e) {
+      // ignore
+    }
     setLoading(false);
-  }, []);
+  };
 
   const handleLogout = async () => {
     try {
@@ -79,16 +118,43 @@ const Profile = ({ navigation }) => {
   if (!user) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={styles.guestContainer}>
+        <ScrollView contentContainerStyle={styles.guestContainer}>
           <ProfileIcon 
             size={120} 
             name="Guest" 
             isGuest={true}
           />
-          <Text style={[styles.guestTitle, { color: colors.text }]}>You're using VedAI as a Guest</Text>
+          <Text style={[styles.guestTitle, { color: colors.text }]}>You're using Atharvanavira as a Guest</Text>
           <Text style={[styles.guestSubtitle, { color: colors.textSecondary }]}>
             Sign in to save your conversation history and access it across devices
           </Text>
+
+          {/* Guest Statistics */}
+          {stats.totalConversations > 0 && (
+            <View style={[styles.guestStatsCard, { backgroundColor: colors.card }]}>
+              <Text style={[styles.guestStatsTitle, { color: colors.text }]}>Your Activity (Guest)</Text>
+              <View style={styles.guestStatsGrid}>
+                <View style={styles.guestStatItem}>
+                  <Icon name="message-circle" size={32} color={colors.primary} />
+                  <Text style={[styles.guestStatValue, { color: colors.text }]}>{stats.totalConversations}</Text>
+                  <Text style={[styles.guestStatLabel, { color: colors.textSecondary }]}>Questions</Text>
+                </View>
+                <View style={styles.guestStatItem}>
+                  <Icon name="edit" size={32} color="#3B82F6" />
+                  <Text style={[styles.guestStatValue, { color: colors.text }]}>{stats.textQuestions}</Text>
+                  <Text style={[styles.guestStatLabel, { color: colors.textSecondary }]}>Text</Text>
+                </View>
+                <View style={styles.guestStatItem}>
+                  <Icon name="image" size={32} color="#10B981" />
+                  <Text style={[styles.guestStatValue, { color: colors.text }]}>{stats.imageQuestions}</Text>
+                  <Text style={[styles.guestStatLabel, { color: colors.textSecondary }]}>Image</Text>
+                </View>
+              </View>
+              <Text style={[styles.guestStatsNote, { color: colors.textSecondary }]}>
+                📱 This data is stored locally. Sign in to sync across devices!
+              </Text>
+            </View>
+          )}
 
           <View style={styles.guestButtonContainer}>
             <TouchableOpacity
@@ -121,15 +187,15 @@ const Profile = ({ navigation }) => {
               <Text style={[styles.featureText, { color: colors.textSecondary }]}>Use image and text input</Text>
             </View>
             <View style={styles.featureItem}>
-              <Icon name="x-circle" size={20} color="#EF4444" />
-              <Text style={[styles.featureText, { color: colors.textSecondary }]}>Save conversation history</Text>
+              <Icon name="check-circle" size={20} color="#22C55E" />
+              <Text style={[styles.featureText, { color: colors.textSecondary }]}>Save chats locally on your device</Text>
             </View>
             <View style={styles.featureItem}>
               <Icon name="x-circle" size={20} color="#EF4444" />
-              <Text style={[styles.featureText, { color: colors.textSecondary }]}>Access history across devices</Text>
+              <Text style={[styles.featureText, { color: colors.textSecondary }]}>Sync history across devices</Text>
             </View>
           </View>
-        </View>
+        </ScrollView>
 
         {/* Footer Navigation */}
         <FooterNavigation />
@@ -146,7 +212,7 @@ const Profile = ({ navigation }) => {
         </View>
       </View>
 
-      <View style={styles.profileContent}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.profileContent}>
         <View style={styles.avatarContainer}>
           <ProfileIcon 
             size={100} 
@@ -169,35 +235,48 @@ const Profile = ({ navigation }) => {
           <Text style={styles.mainEditButtonText}>Edit Profile</Text>
         </TouchableOpacity>
 
+        {/* Statistics Card */}
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Your Activity</Text>
+          <View style={styles.statsGrid}>
+            <View style={styles.statItem}>
+              <View style={[styles.statIconContainer, { backgroundColor: colors.primary + '20' }]}>
+                <Icon name="message-circle" size={24} color={colors.primary} />
+              </View>
+              <Text style={[styles.statValue, { color: colors.text }]}>{stats.totalConversations}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Chats</Text>
+            </View>
+            <View style={styles.statItem}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#3B82F6' + '20' }]}>
+                <Icon name="edit" size={24} color="#3B82F6" />
+              </View>
+              <Text style={[styles.statValue, { color: colors.text }]}>{stats.textQuestions}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Text Questions</Text>
+            </View>
+            <View style={styles.statItem}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#10B981' + '20' }]}>
+                <Icon name="image" size={24} color="#10B981" />
+              </View>
+              <Text style={[styles.statValue, { color: colors.text }]}>{stats.imageQuestions}</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Image Questions</Text>
+            </View>
+          </View>
+          {stats.memberSince && (
+            <View style={styles.memberInfo}>
+              <Icon name="calendar" size={16} color={colors.textSecondary} />
+              <Text style={[styles.memberText, { color: colors.textSecondary }]}>
+                Member since {new Date(stats.memberSince).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+              </Text>
+            </View>
+          )}
+        </View>
+
         <View style={[styles.card, { backgroundColor: colors.card }]}> 
           <Text style={[styles.cardTitle, { color: colors.text }]}>Account</Text>
           <View style={styles.row}>
             <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
             <View style={styles.rowRight}>
-              <Text style={[styles.value, { color: colors.text }]}>{user?.email}</Text>
-              <TouchableOpacity>
-                <Text style={[styles.changeText, { color: colors.primary }]}>Change</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Phone</Text>
-            <View style={styles.rowRight}>
-              <Text style={[styles.value, { color: colors.text }]}>+91 98765 43210</Text>
-              <TouchableOpacity>
-                <Text style={[styles.changeText, { color: colors.primary }]}>Change</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Password</Text>
-            <View style={styles.rowRight}>
-              <Text style={[styles.value, { color: colors.text }]}>••••••••</Text>
-              <TouchableOpacity>
-                <Text style={[styles.changeText, { color: colors.primary }]}>Change</Text>
-              </TouchableOpacity>
+              <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>{user?.email}</Text>
             </View>
           </View>
         </View>
@@ -217,7 +296,7 @@ const Profile = ({ navigation }) => {
         <TouchableOpacity style={[styles.logoutButtonFull, { backgroundColor: '#fff', borderColor: '#F87171', borderWidth: 1 }]} onPress={handleLogout}>
           <Text style={[styles.logoutTextFull, { color: '#F87171' }]}>Logout</Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
       {/* Footer Navigation */}
       <FooterNavigation />
@@ -256,10 +335,13 @@ const styles = StyleSheet.create({
   placeholder: {
     width: 40,
   },
-  profileContent: {
+  scrollView: {
     flex: 1,
+  },
+  profileContent: {
     alignItems: 'center',
-    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 100,
   },
   avatarContainer: {
     position: 'relative',
@@ -379,6 +461,44 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 12,
   },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginVertical: 16,
+  },
+  statItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  statIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  memberInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  memberText: {
+    fontSize: 13,
+  },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -430,11 +550,12 @@ const styles = StyleSheet.create({
   },
   // Guest view styles
   guestContainer: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: '#F5F5DC',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+    paddingBottom: 100,
   },
   guestTitle: {
     fontSize: 24,
@@ -449,6 +570,49 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: 'center',
     lineHeight: 24,
+  },
+  guestStatsCard: {
+    width: '100%',
+    padding: 20,
+    borderRadius: 16,
+    marginTop: 24,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  guestStatsTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  guestStatsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  guestStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  guestStatValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  guestStatLabel: {
+    fontSize: 12,
+  },
+  guestStatsNote: {
+    fontSize: 12,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
   },
   guestButtonContainer: {
     width: '100%',

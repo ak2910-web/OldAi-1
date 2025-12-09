@@ -7,6 +7,11 @@ const admin = require("firebase-admin");
 const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+// Import our Hybrid Dynamic Output Engine (Solution 3)
+const { getClassificationPrompt, parseClassificationResponse } = require('./questionClassifier');
+const { getTemplatePrompt } = require('./templateEngine');
+const { formatResponse, extractSections, getPreview } = require('./responseFormatter');
+
 // Simple in-memory rate limiter (per IP, per endpoint)
 const RATE_LIMIT = 10; // requests
 const RATE_WINDOW = 60 * 1000; // 1 minute
@@ -43,6 +48,10 @@ admin.initializeApp();
 
 // Initialize Firestore for caching and stats
 const db = admin.firestore();
+
+// Get Firestore types for timestamps
+const FieldValue = admin.firestore.FieldValue;
+const Timestamp = admin.firestore.Timestamp;
 
 
 // Gemini API key
@@ -173,14 +182,32 @@ const getCachedResponse = async (question, language) => {
     if (cacheDoc.exists) {
       const data = cacheDoc.data();
       // Cache expires after 24 hours
-      const cacheAge = Date.now() - data.timestamp.toMillis();
-      if (cacheAge < 24 * 60 * 60 * 1000) {
-        console.log('💾 Cache hit! Returning cached response');
-        return data.response;
+      if (data.timestamp) {
+        let timestampMillis;
+        // Handle both Firestore Timestamp objects and numeric timestamps
+        if (typeof data.timestamp === 'number') {
+          timestampMillis = data.timestamp;
+        } else if (data.timestamp.toMillis && typeof data.timestamp.toMillis === 'function') {
+          timestampMillis = data.timestamp.toMillis();
+        } else {
+          // Unknown format, return cached response anyway
+          console.log('💾 Cache hit! Returning cached response (unknown timestamp format)');
+          return data.response;
+        }
+        
+        const cacheAge = Date.now() - timestampMillis;
+        if (cacheAge < 24 * 60 * 60 * 1000) {
+          console.log('💾 Cache hit! Returning cached response');
+          return data.response;
+        } else {
+          console.log('🕐 Cache expired, will fetch new response');
+          // Delete expired cache
+          await db.collection('responseCache').doc(cacheKey).delete();
+        }
       } else {
-        console.log('🕐 Cache expired, will fetch new response');
-        // Delete expired cache
-        await db.collection('responseCache').doc(cacheKey).delete();
+        // If timestamp is missing or invalid, return cached response anyway
+        console.log('💾 Cache hit! Returning cached response (no valid timestamp)');
+        return data.response;
       }
     }
     return null;
@@ -200,7 +227,7 @@ const saveToCache = async (question, language, response) => {
       question,
       language,
       response,
-      timestamp: admin.firestore.Timestamp.fromDate(new Date()),
+      timestamp: Date.now(),
     });
     console.log('💾 Response cached successfully');
   } catch (error) {
@@ -217,7 +244,7 @@ const saveToSearchHistory = async (question, language, preview) => {
       question,
       language,
       preview, // First 200 chars of response
-      timestamp: admin.firestore.Timestamp.fromDate(new Date()),
+      timestamp: Date.now(),
     });
     console.log('📝 Search saved to history');
   } catch (error) {
@@ -483,7 +510,9 @@ exports.listModels = functions.https.onRequest(async (req, res) => {
 
 /**
  * HTTP endpoint to process questions and return answers
- * Using direct REST API for better reliability
+ * Using HYBRID DYNAMIC OUTPUT ENGINE (Solution 3)
+ * 
+ * Process: Classification → Template Selection → AI Generation → Formatting
  */
 exports.answerQuestion = functions.https.onRequest(async (req, res) => {
   if (!checkRateLimit('answerQuestion', req, res)) return;
@@ -517,10 +546,22 @@ exports.answerQuestion = functions.https.onRequest(async (req, res) => {
     const cachedResponse = await getCachedResponse(question, language);
     if (cachedResponse) {
       console.log(`⚡ Returning cached response (saved ${Date.now() - startTime}ms)`);
-      return res.json({ answer: cachedResponse, cached: true });
+      
+      // Parse cached response if it's structured
+      let parsedCache;
+      try {
+        parsedCache = JSON.parse(cachedResponse);
+      } catch {
+        parsedCache = { answer: cachedResponse };
+      }
+      
+      return res.json({ 
+        ...parsedCache,
+        cached: true 
+      });
     }
 
-    console.log("🤖 Generating content...");
+    console.log("🧠 LAYER 1: Classifying question type...");
 
     // Language-specific instructions
     let languageInstruction = '';
@@ -686,29 +727,71 @@ Question: ${question}
 
 IMPORTANT: Mix descriptive paragraphs for concepts with clear bullet points for steps, advantages, and applications. Use proper mathematical notation (_{} for subscripts, ^{} for superscripts).${languageInstruction}`;
 
-    // Call Gemini API with fallback and get response
-    const text = await callGeminiWithRetry(enhancedPrompt);
+    console.log("🧠 LAYER 1: Classifying question type...");
+    
+    // LAYER 1: CLASSIFICATION
+    const classificationPrompt = getClassificationPrompt(question);
+    const classificationResponse = await callGeminiWithRetry(classificationPrompt);
+    const questionType = parseClassificationResponse(classificationResponse);
+    
+    console.log(`✅ Question classified as: ${questionType}`);
+    console.log(`🧱 LAYER 2: Selecting template for "${questionType}"...`);
+    
+    // LAYER 2: TEMPLATE SELECTION
+    const templatePrompt = getTemplatePrompt(questionType, question, language);
+    
+    console.log(`🤖 LAYER 3: Generating AI response...`);
+    
+    // Call Gemini API with templated prompt
+    const rawResponse = await callGeminiWithRetry(templatePrompt);
+    
+    console.log(`✨ LAYER 4: Formatting response...`);
+    
+    // LAYER 3: FORMATTING
+    const formattedAnswer = formatResponse(rawResponse);
+    const sections = extractSections(formattedAnswer);
+    const preview = getPreview(formattedAnswer);
+    
     // Token counting
-    const tokenCount = countTokens(text);
-    // Try to parse as JSON (for structured responses)
-    const parsed = tryParseJSON(text);
-    // Save to cache for future requests
-    saveToCache(question, language, text).catch(err => 
+    const tokenCount = countTokens(rawResponse);
+    
+    console.log(`✅ Response generated successfully in ${Date.now() - startTime}ms`);
+    console.log(`📊 Question Type: ${questionType}`);
+    console.log(`📊 Token Count: ${tokenCount}`);
+    console.log(`📊 Sections Extracted: ${Object.keys(sections).length}`);
+    
+    // Prepare response object
+    const responseData = {
+      answer: formattedAnswer,
+      questionType,
+      sections,
+      tokenCount,
+      cached: false,
+      processingTime: Date.now() - startTime
+    };
+    
+    // Save to cache for future requests (save stringified version)
+    saveToCache(question, language, JSON.stringify(responseData)).catch(err => 
       console.error('Failed to cache response:', err)
     );
+    
     // Save to search history
-    saveToSearchHistory(question, language, text.substring(0, 200)).catch(err =>
+    saveToSearchHistory(question, language, preview).catch(err =>
       console.error('Failed to save search history:', err)
     );
-    // Log usage for dashboard
+    
+    // Log usage for dashboard with question type
     await db.collection('apiUsage').add({
       endpoint: 'answerQuestion',
       question,
       language,
+      questionType,
       tokenCount,
-      usedFallback: text.startsWith('Gemini failed')
+      processingTime: Date.now() - startTime,
+      timestamp: Date.now()
     });
-    res.json({ answer: text, parsed, tokenCount, cached: false });
+    
+    res.json(responseData);
   } catch (error) {
     console.error("❌ Error:", error);
     res.status(500).json({ error: error.message });
@@ -973,6 +1056,63 @@ exports.getRecentSearches = functions.https.onRequest(async (req, res) => {
     res.json({ searches, count: searches.length });
   } catch (error) {
     console.error("❌ Error fetching search history:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * HTTP endpoint to save a conversation to Firestore
+ */
+exports.saveConversation = functions.https.onRequest(async (req, res) => {
+  try {
+    // Enable CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'POST');
+      res.set('Access-Control-Allow-Headers', 'Content-Type');
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed. Use POST.' });
+      return;
+    }
+
+    const { question, answer, model, type, userId, language } = req.body;
+
+    if (!question || !answer) {
+      res.status(400).json({ error: 'Missing required fields: question and answer' });
+      return;
+    }
+
+    console.log("💾 Saving conversation to Firestore...");
+
+    // Prepare conversation data
+    const conversationData = {
+      userId: userId || 'anonymous',
+      question: question,
+      answer: typeof answer === 'object' ? JSON.stringify(answer) : answer,
+      model: model || 'gemini-2.0-flash',
+      type: type || 'text',
+      language: language || 'English',
+      timestamp: admin.firestore.Timestamp.fromDate(new Date()),
+      createdAt: new Date().toISOString(),
+    };
+
+    // Save to Firestore
+    const docRef = await db.collection('conversations').add(conversationData);
+
+    console.log(`✅ Conversation saved with ID: ${docRef.id}`);
+    
+    res.json({ 
+      success: true, 
+      conversationId: docRef.id,
+      message: 'Conversation saved successfully'
+    });
+  } catch (error) {
+    console.error("❌ Error saving conversation:", error);
     res.status(500).json({ error: error.message });
   }
 });

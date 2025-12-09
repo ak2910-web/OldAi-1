@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import React from 'react'
 import { ThemeProvider } from './src/context/ThemeContext'
+import { AuthProvider } from './src/context/AuthContext'
 
 import Splash from './src/Screen/Splash'
 import ArrowLeftIcon from './src/components/ArrowLeftIcon'
@@ -20,13 +21,15 @@ import About from './src/Screen/About'
 import FirestoreTest from './src/Screen/FirestoreTest'
 import Explore from './src/Screen/Explore'
 import DiscoveryDetail from './src/Screen/DiscoveryDetail'
+import History from './src/Screen/History'
 
 const Stack = createNativeStackNavigator();
 const App = () => {
   return (
-    <ThemeProvider>
-      <NavigationContainer >
-      <Stack.Navigator screenOptions={{
+    <AuthProvider>
+      <ThemeProvider>
+        <NavigationContainer >
+        <Stack.Navigator screenOptions={{
         // show the native header for all screens so a back button is available
         headerShown: true,
         headerTitleAlign: 'center',
@@ -51,6 +54,7 @@ const App = () => {
   <Stack.Screen name='FirestoreTest' component={FirestoreTest} options={{ headerShown: false }} />
   <Stack.Screen name='Explore' component={Explore} options={{ headerShown: false }} />
   <Stack.Screen name='DiscoveryDetail' component={DiscoveryDetail} options={{ headerShown: false }} />
+  <Stack.Screen name='History' component={History} options={{ headerShown: false }} />
 
 
 
@@ -58,6 +62,7 @@ const App = () => {
 
     </NavigationContainer>
     </ThemeProvider>
+    </AuthProvider>
   )
 }
 

@@ -6,6 +6,27 @@ import auth from '@react-native-firebase/auth';
  * Handles all database operations for OldAi app
  */
 
+// Enable offline persistence for Firestore
+let persistenceEnabled = false;
+
+const enableOfflinePersistence = async () => {
+  if (persistenceEnabled) return;
+  
+  try {
+    await firestore().settings({
+      persistence: true,
+      cacheSizeBytes: firestore.CACHE_SIZE_UNLIMITED,
+    });
+    persistenceEnabled = true;
+    console.log('✅ Firestore offline persistence enabled');
+  } catch (error) {
+    console.warn('⚠️ Failed to enable offline persistence:', error);
+  }
+};
+
+// Enable persistence immediately
+enableOfflinePersistence();
+
 // Enable Firestore emulator for development
 if (__DEV__) {
   firestore().useEmulator('10.0.2.2', 8080);
@@ -21,7 +42,7 @@ const COLLECTIONS = {
 /**
  * Save a conversation (question + answer) to Firestore
  * @param {string} question - The user's question
- * @param {string} answer - The AI's answer
+ * @param {Object|string} answer - The AI's answer (can be object with answer field or string)
  * @param {string} model - The AI model used
  * @param {string} type - Type of input ('text' or 'image')
  * @returns {Promise<string>} - Document ID
@@ -30,14 +51,20 @@ export const saveConversation = async (question, answer, model = 'gemini-2.0-fla
   try {
     const userId = auth().currentUser?.uid || 'anonymous';
     
+    // Extract answer string from response object if needed
+    const answerText = typeof answer === 'object' ? (answer.answer || JSON.stringify(answer)) : answer;
+    
     const conversationData = {
       userId,
       question,
-      answer,
+      answer: answerText,
       model,
       type,
       timestamp: firestore.FieldValue.serverTimestamp(),
       createdAt: new Date().toISOString(),
+      // Add metadata for offline access
+      offline: !navigator.onLine,
+      synced: navigator.onLine,
     };
 
     const docRef = await firestore()
@@ -67,17 +94,20 @@ export const getUserConversations = async (limit = 50) => {
       .where('userId', '==', userId)
       .orderBy('timestamp', 'desc')
       .limit(limit)
-      .get();
+      .get({ source: 'default' }); // Use cache when offline
 
     const conversations = [];
     snapshot.forEach(doc => {
+      const data = doc.data();
       conversations.push({
         id: doc.id,
-        ...doc.data(),
+        ...data,
+        // Indicate if data is from cache (offline)
+        fromCache: doc.metadata.fromCache,
       });
     });
 
-    console.log(`✅ Fetched ${conversations.length} conversations`);
+    console.log(`✅ Fetched ${conversations.length} conversations (${snapshot.metadata.fromCache ? 'from cache' : 'from server'})`);
     return conversations;
   } catch (error) {
     console.error('❌ Error fetching conversations:', error);

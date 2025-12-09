@@ -12,72 +12,153 @@ export function formatResponse(text = "") {
     .replace(/\/(?=\d)/g, ' ÷ ')
     .trim();
 }
-export const BASE_URL = "http://10.38.78.61:5005/demo-no-project/us-central1";
-// Firebase Functions emulator for Android
+export const BASE_URL = "http://localhost:5005/demo-no-project/us-central1";
+// Using localhost with ADB reverse instead of IP address
 
 const MAX_RETRIES = 1;
 const TIMEOUT = 90000; // 90 seconds - generous timeout for Gemini API
+
+// Model success tracking
+const modelStats = {
+  'gemini-1.5-flash': { success: 0, failure: 0, lastUsed: 0 },
+  'gemini-1.5-pro': { success: 0, failure: 0, lastUsed: 0 },
+  'gemini-2.0-flash-exp': { success: 0, failure: 0, lastUsed: 0 },
+};
+
+// Calculate success rate for a model
+const getSuccessRate = (modelName) => {
+  const stats = modelStats[modelName];
+  if (!stats) return 0;
+  const total = stats.success + stats.failure;
+  if (total === 0) return 0.5; // neutral for untested models
+  return stats.success / total;
+};
+
+// Get models sorted by success rate (best first)
+const getModelsBySuccessRate = () => {
+  return Object.keys(modelStats).sort((a, b) => {
+    const rateA = getSuccessRate(a);
+    const rateB = getSuccessRate(b);
+    // If rates are equal, prefer less recently used
+    if (rateA === rateB) {
+      return modelStats[a].lastUsed - modelStats[b].lastUsed;
+    }
+    return rateB - rateA; // descending order
+  });
+};
+
+// Record success
+const recordSuccess = (modelName) => {
+  if (modelStats[modelName]) {
+    modelStats[modelName].success++;
+    modelStats[modelName].lastUsed = Date.now();
+    console.log(`✅ ${modelName} success: ${modelStats[modelName].success}/${modelStats[modelName].success + modelStats[modelName].failure}`);
+  }
+};
+
+// Record failure
+const recordFailure = (modelName) => {
+  if (modelStats[modelName]) {
+    modelStats[modelName].failure++;
+    modelStats[modelName].lastUsed = Date.now();
+    console.log(`❌ ${modelName} failure: ${modelStats[modelName].failure}/${modelStats[modelName].success + modelStats[modelName].failure}`);
+  }
+};
 
 // Simple connection test
 const testConnection = async () => {
   try {
     const response = await fetch('https://www.google.com');
     return response.ok;
-
-
-    
   } catch (error) {
     return false;
   }
 };
 
 export const getResonance = async (text, language = 'English') => {
-  let retries = 0;
-  while (retries <= MAX_RETRIES) {
+  const models = getModelsBySuccessRate();
+  let lastError = null;
+
+  // Try each model in order of success rate
+  for (const preferredModel of models) {
     try {
+      console.log(`🔄 Trying model: ${preferredModel} (success rate: ${(getSuccessRate(preferredModel) * 100).toFixed(0)}%)`);
+      
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
+      
       const res = await fetch(`${BASE_URL}/answerQuestion`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json"
+          "Accept": "application/json",
+          "X-Preferred-Model": preferredModel // Send preferred model to backend
         },
         body: JSON.stringify({
           question: text,
-          language: language
+          language: language,
+          preferredModel: preferredModel
         }),
         signal: controller.signal
       });
+      
       clearTimeout(timeoutId);
+      
       if (!res.ok) {
         const errorText = await res.text();
+        recordFailure(preferredModel);
         throw new Error(`Server error (${res.status}): ${errorText}`);
       }
+      
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      if (!data.answer) throw new Error('No answer received from server');
-      // Return all fields for advanced UI/hooks
+      
+      if (data.error) {
+        recordFailure(preferredModel);
+        throw new Error(data.error);
+      }
+      
+      if (!data.answer) {
+        recordFailure(preferredModel);
+        throw new Error('No answer received from server');
+      }
+      
+      // Success! Record it
+      recordSuccess(preferredModel);
+      console.log(`✅ Successfully got response from ${preferredModel}`);
+      
+      // Return full response object from Hybrid Dynamic Output Engine
       return {
         answer: data.answer,
-        parsed: data.parsed,
-        tokenCount: data.tokenCount,
-        cached: data.cached || false
+        questionType: data.questionType || 'misc',
+        sections: data.sections || {},
+        tokenCount: data.tokenCount || 0,
+        cached: data.cached || false,
+        processingTime: data.processingTime || 0,
+        modelUsed: preferredModel
       };
+      
     } catch (error) {
+      lastError = error;
+      console.log(`⚠️ Model ${preferredModel} failed: ${error.message}`);
+      
       if (error.name === 'AbortError') {
-        throw new Error('Request timed out after 90 seconds. Please try again.');
+        recordFailure(preferredModel);
+        // Don't retry on timeout, move to next model
+        continue;
       }
+      
       if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+        // Network error - no point trying other models
         throw new Error('Cannot connect to server. Please make sure:\n1. Firebase emulator is running\n2. You have internet connection\n3. Try restarting the app');
       }
-      if (retries === MAX_RETRIES) {
-        throw new Error(`Connection failed: ${error.message}`);
-      }
-      retries++;
-      await new Promise(resolve => setTimeout(resolve, 1000 * retries));
+      
+      // Try next model
+      continue;
     }
   }
+  
+  // All models failed
+  throw new Error(`All models failed. Last error: ${lastError?.message || 'Unknown error'}`);
 };
 
 export const extractText = async (base64Image, mimeType) => {
@@ -139,6 +220,39 @@ export const getRecentSearches = async (limit = 10) => {
   } catch (error) {
     console.error('❌ Error fetching recent searches:', error);
     return []; // Return empty array on error
+  }
+}
+
+// Save conversation to Firestore via backend
+export const saveConversationToFirestore = async (question, answer, model = 'gemini-2.0-flash', type = 'text', language = 'English') => {
+  try {
+    console.log('💾 Saving conversation to Firestore...');
+    
+    const res = await fetch(`${BASE_URL}/saveConversation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question,
+        answer: typeof answer === 'object' ? (answer.answer || JSON.stringify(answer)) : answer,
+        model,
+        type,
+        language,
+        userId: 'anonymous' // You can replace this with actual user ID from auth
+      })
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      throw new Error(`Server error (${res.status}): ${errorText}`);
+    }
+
+    const data = await res.json();
+    console.log(`✅ Conversation saved with ID: ${data.conversationId}`);
+    return data.conversationId;
+    
+  } catch (error) {
+    console.error('❌ Error saving conversation:', error);
+    throw error;
   }
 }
 

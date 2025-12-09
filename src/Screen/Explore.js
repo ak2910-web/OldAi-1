@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   Animated,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
@@ -96,6 +97,19 @@ const discoveries = [
 const Explore = ({ navigation }) => {
   const { colors, isDarkMode } = useTheme();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('All');
+
+  const categories = ['All', 'Mathematics', 'Science', 'Medicine', 'Astronomy', 'Wellness'];
+
+  // Filter discoveries based on search and category
+  const filteredDiscoveries = discoveries.filter(item => {
+    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         item.ancientInsight.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         item.modernResonance.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'All' || item.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   // Hero section fade animation
   const heroOpacity = scrollY.interpolate({
@@ -223,14 +237,65 @@ const Explore = ({ navigation }) => {
           <Icon name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Explore</Text>
-        <TouchableOpacity
-          style={styles.searchButton}
-          onPress={() => console.log('Search')}
-          activeOpacity={0.7}
-        >
-          <Icon name="search" size={24} color={colors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => navigation.navigate('History')}
+            activeOpacity={0.7}
+          >
+            <Icon name="clock" size={24} color={colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Search Bar */}
+      <View style={[styles.searchContainer, { backgroundColor: colors.surface }]}>
+        <Icon name="search" size={20} color={colors.textSecondary} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.text }]}
+          placeholder="Search discoveries..."
+          placeholderTextColor={colors.textSecondary}
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Icon name="x" size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Category Filter */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoryScroll}
+        contentContainerStyle={styles.categoryContainer}
+      >
+        {categories.map((category) => (
+          <TouchableOpacity
+            key={category}
+            style={[
+              styles.categoryChip,
+              {
+                backgroundColor: selectedCategory === category ? colors.primary : colors.surface,
+              },
+            ]}
+            onPress={() => setSelectedCategory(category)}
+          >
+            <Text
+              style={[
+                styles.categoryChipText,
+                {
+                  color: selectedCategory === category ? '#fff' : colors.text,
+                },
+              ]}
+            >
+              {category}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {/* Discovery Cards with Hero Section inside ScrollView */}
       <Animated.ScrollView
@@ -255,18 +320,28 @@ const Explore = ({ navigation }) => {
             style={styles.heroSection}
           >
             <Text style={[styles.heroTitle, { color: isDarkMode ? '#FFD700' : '#D35400' }]}>
-              From Vedic Discoveries to Modern Innovations
+              {filteredDiscoveries.length} Discoveries Found
             </Text>
             <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
-              Explore the profound connections between ancient wisdom and contemporary science
+              {selectedCategory !== 'All' ? `Exploring ${selectedCategory}` : 'Explore the profound connections between ancient wisdom and contemporary science'}
             </Text>
           </LinearGradient>
         </Animated.View>
 
         {/* Discovery Cards */}
-        {discoveries.map((item, index) => (
-          <DiscoveryCard key={item.id} item={item} index={index} />
-        ))}
+        {filteredDiscoveries.length > 0 ? (
+          filteredDiscoveries.map((item, index) => (
+            <DiscoveryCard key={item.id} item={item} index={index} />
+          ))
+        ) : (
+          <View style={styles.emptyState}>
+            <Icon name="search" size={64} color={colors.textSecondary} />
+            <Text style={[styles.emptyText, { color: colors.text }]}>No discoveries found</Text>
+            <Text style={[styles.emptySubtext, { color: colors.textSecondary }]}>
+              Try adjusting your search or filters
+            </Text>
+          </View>
+        )}
 
         {/* Footer */}
         <View style={styles.footer}>
@@ -310,6 +385,72 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     fontFamily: 'System',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    padding: 0,
+  },
+  categoryScroll: {
+    marginTop: 12,
+  },
+  categoryContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  categoryChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 32,
+  },
+  emptyText: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    textAlign: 'center',
   },
   searchButton: {
     width: 40,

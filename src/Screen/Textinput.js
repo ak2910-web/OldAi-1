@@ -13,12 +13,13 @@ import {
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { getResonance } from '../api/api';
-import { saveConversation } from '../services/firebaseService';
+import { getResonance, saveConversationToFirestore } from '../api/api';
+import { saveConversationLocal, updateGuestStats } from '../services/localStorageService';
+import auth from '@react-native-firebase/auth';
+import { sanitizeForFirestore } from '../utils/textParser';
 import FooterNavigation from '../components/FooterNavigation';
 import { useTheme } from '../context/ThemeContext.js';
 import ProfileIcon from '../components/ProfileIcon';
-import auth from '@react-native-firebase/auth';
 
 const Textinput = ({navigation, colors, isDarkMode}) => {
   const themedStyles = styles(colors);
@@ -102,22 +103,57 @@ const Textinput = ({navigation, colors, isDarkMode}) => {
       console.log('🌐 Language:', selectedLanguage);
       
       const result = await getResonance(prompt, selectedLanguage);
-      console.log('✅ API response received, length:', result?.length || 0);
+      console.log('✅ API response received');
+      console.log('📊 Full result object:', JSON.stringify(result, null, 2));
+      console.log('📊 Question Type:', result.questionType);
+      console.log('📊 Processing Time:', result.processingTime, 'ms');
+      console.log('📊 Sections:', result.sections ? Object.keys(result.sections) : 'none');
+      console.log('📊 Answer length:', result.answer ? result.answer.length : 0);
       
       if (result) {
-        // Save conversation to Firestore (non-blocking)
-        saveConversation(prompt, result, 'gemini-2.0-flash', 'text')
-          .then(() => console.log('✅ Conversation saved to Firestore'))
-          .catch(err => console.warn('⚠️ Failed to save to Firestore:', err));
+        // Sanitize data before saving to Firestore (remove undefined, limit string length)
+        const sanitizedAnswer = sanitizeForFirestore(result.answer || result);
+        
+        // Save conversation based on auth status
+        const currentUser = auth().currentUser;
+        if (currentUser) {
+          // Save to Firestore for authenticated users (non-blocking)
+          saveConversationToFirestore(
+            prompt, 
+            sanitizedAnswer, 
+            result.modelUsed || 'gemini-2.0-flash', 
+            'text',
+            selectedLanguage
+          )
+            .then((conversationId) => console.log('✅ Conversation saved to Firestore:', conversationId))
+            .catch(err => console.error('❌ Error saving conversation:', err.message));
+        } else {
+          // Save to local storage for guest users (non-blocking)
+          saveConversationLocal(
+            prompt,
+            sanitizedAnswer,
+            result.modelUsed || 'gemini-2.0-flash',
+            'text'
+          )
+            .then((conversationId) => {
+              console.log('✅ Conversation saved locally:', conversationId);
+              updateGuestStats('text');
+            })
+            .catch(err => console.error('❌ Error saving conversation locally:', err.message));
+        }
 
         console.log('📱 Navigating to Output screen...');
         
-        // Navigate first, then stop loading
+        // Navigate with the full result object including questionType
         navigation.navigate('Output', { 
-          result: result,
+          result: result.answer || result,
           prompt: prompt,
-          model: 'Gemini Pro',
-          language: selectedLanguage
+          model: result.modelUsed || 'Gemini Pro',
+          language: selectedLanguage,
+          cached: result.cached || false,
+          questionType: result.questionType || 'misc',
+          sections: result.sections || {},
+          processingTime: result.processingTime || 0
         });
         
         // Small delay to ensure navigation completes
@@ -158,14 +194,22 @@ const Textinput = ({navigation, colors, isDarkMode}) => {
         <View style={themedStyles.headerContent}>
           <Text style={[themedStyles.headerTitle, { color: colors.text }]}>Atharvanavira</Text>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={themedStyles.headerButton}>
-          <ProfileIcon
-            size={32}
-            name={currentUser?.displayName || 'Guest'}
-            imageUri={currentUser?.photoURL}
-            isGuest={!currentUser}
-          />
-        </TouchableOpacity>
+        <View style={themedStyles.headerRight}>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('History')} 
+            style={themedStyles.headerButton}
+          >
+            <Icon name="history" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')} style={themedStyles.headerButton}>
+            <ProfileIcon
+              size={32}
+              name={currentUser?.displayName || 'Guest'}
+              imageUri={currentUser?.photoURL}
+              isGuest={!currentUser}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }} showsVerticalScrollIndicator={false}>
@@ -349,6 +393,11 @@ const styles = (colors) => StyleSheet.create({
   },
   headerButton: {
     padding: 8,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   headerContent: {
     flex: 1,
