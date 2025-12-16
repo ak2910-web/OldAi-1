@@ -280,8 +280,8 @@ By using VedAI, you acknowledge that:
 
 ---
 
-**App Name:** VedAI (Atharvanavira)  
-**Developer:** Atharvanavira Project Team  
+**App Name:** VedAI (Athrvanavira)  
+**Developer:** Athrvanavira Project Team  
 **Version:** 1.0  
 **Platform:** Android / iOS  
 **Effective Date:** December 16, 2025
