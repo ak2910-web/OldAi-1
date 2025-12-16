@@ -183,7 +183,7 @@ For questions, concerns, or requests regarding this Privacy Policy:
 
 ---
 
-**Developer:** Atharvanavira Project Team  
+**Developer:** Athrvanavira Project Team  
 **App Version:** 1.0  
 **Jurisdiction:** India
 
