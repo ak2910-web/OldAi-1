@@ -1,3 +1,5 @@
+import auth from '@react-native-firebase/auth';
+
 // Utility: Clean and format AI response for React Native output (handles \n, \", math, etc.)
 export function formatResponse(text = "") {
   if (!text) return "";
@@ -5,11 +7,21 @@ export function formatResponse(text = "") {
     .replace(/\\n/g, '\n')
     .replace(/\n{2,}/g, '\n\n')
     .replace(/\\"/g, '"')
-    .replace(/\\t/g, ' ')
-    .replace(/\*\*(\d+)/g, '^($1)')
+    .replace(/\\'/g, "'")
+    .replace(/\\\*/g, '*')
+    .replace(/\\\//g, '/')
+    .replace(/\\\\/g, '\\')
+    .replace(/\\t/g, '  ')
+    .replace(/\*\*\*/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/\^2/g, '²')
+    .replace(/\^3/g, '³')
     .replace(/sqrt\((.*?)\)/g, '√($1)')
     .replace(/\*(?=\d)/g, ' × ')
     .replace(/\/(?=\d)/g, ' ÷ ')
+    .replace(/<=/g, '≤')
+    .replace(/>=/g, '≥')
+    .replace(/!=/g, '≠')
     .trim();
 }
 export const BASE_URL = "http://localhost:5005/demo-no-project/us-central1";
@@ -18,11 +30,11 @@ export const BASE_URL = "http://localhost:5005/demo-no-project/us-central1";
 const MAX_RETRIES = 1;
 const TIMEOUT = 90000; // 90 seconds - generous timeout for Gemini API
 
-// Model success tracking
+// Model success tracking - MUST match backend AVAILABLE_MODELS
 const modelStats = {
-  'gemini-1.5-flash': { success: 0, failure: 0, lastUsed: 0 },
-  'gemini-1.5-pro': { success: 0, failure: 0, lastUsed: 0 },
-  'gemini-2.0-flash-exp': { success: 0, failure: 0, lastUsed: 0 },
+  'gemini-2.0-flash': { success: 0, failure: 0, lastUsed: 0 },
+  'gemini-2.0-flash-lite': { success: 0, failure: 0, lastUsed: 0 },
+  'gemini-2.5-flash-lite': { success: 0, failure: 0, lastUsed: 0 },
 };
 
 // Calculate success rate for a model
@@ -52,7 +64,7 @@ const recordSuccess = (modelName) => {
   if (modelStats[modelName]) {
     modelStats[modelName].success++;
     modelStats[modelName].lastUsed = Date.now();
-    console.log(`✅ ${modelName} success: ${modelStats[modelName].success}/${modelStats[modelName].success + modelStats[modelName].failure}`);
+    console.log(`[SUCCESS] ${modelName} success: ${modelStats[modelName].success}/${modelStats[modelName].success + modelStats[modelName].failure}`);
   }
 };
 
@@ -61,7 +73,7 @@ const recordFailure = (modelName) => {
   if (modelStats[modelName]) {
     modelStats[modelName].failure++;
     modelStats[modelName].lastUsed = Date.now();
-    console.log(`❌ ${modelName} failure: ${modelStats[modelName].failure}/${modelStats[modelName].success + modelStats[modelName].failure}`);
+    console.log(`[ERROR] ${modelName} failure: ${modelStats[modelName].failure}/${modelStats[modelName].success + modelStats[modelName].failure}`);
   }
 };
 
@@ -82,7 +94,7 @@ export const getResonance = async (text, language = 'English') => {
   // Try each model in order of success rate
   for (const preferredModel of models) {
     try {
-      console.log(`🔄 Trying model: ${preferredModel} (success rate: ${(getSuccessRate(preferredModel) * 100).toFixed(0)}%)`);
+      console.log(`[RETRY] Trying model: ${preferredModel} (success rate: ${(getSuccessRate(preferredModel) * 100).toFixed(0)}%)`);
       
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), TIMEOUT);
@@ -124,7 +136,7 @@ export const getResonance = async (text, language = 'English') => {
       
       // Success! Record it
       recordSuccess(preferredModel);
-      console.log(`✅ Successfully got response from ${preferredModel}`);
+      console.log(`[SUCCESS] Successfully got response from ${preferredModel}`);
       
       // Return full response object from Hybrid Dynamic Output Engine
       return {
@@ -139,7 +151,7 @@ export const getResonance = async (text, language = 'English') => {
       
     } catch (error) {
       lastError = error;
-      console.log(`⚠️ Model ${preferredModel} failed: ${error.message}`);
+      console.log(`[WARNING] Model ${preferredModel} failed: ${error.message}`);
       
       if (error.name === 'AbortError') {
         recordFailure(preferredModel);
@@ -201,7 +213,7 @@ export const extractText = async (base64Image, mimeType) => {
 // Get recent searches
 export const getRecentSearches = async (limit = 10) => {
   try {
-    console.log('📜 Fetching recent searches...');
+    console.log('[HISTORY] Fetching recent searches...');
     
     const res = await fetch(`${BASE_URL}/getRecentSearches?limit=${limit}`, {
       method: "GET",
@@ -214,11 +226,11 @@ export const getRecentSearches = async (limit = 10) => {
     }
 
     const data = await res.json();
-    console.log(`✅ Fetched ${data.count} recent searches`);
+    console.log(`[SUCCESS] Fetched ${data.count} recent searches`);
     return data.searches || [];
     
   } catch (error) {
-    console.error('❌ Error fetching recent searches:', error);
+    console.error('[ERROR] Error fetching recent searches:', error);
     return []; // Return empty array on error
   }
 }
@@ -226,7 +238,11 @@ export const getRecentSearches = async (limit = 10) => {
 // Save conversation to Firestore via backend
 export const saveConversationToFirestore = async (question, answer, model = 'gemini-2.0-flash', type = 'text', language = 'English') => {
   try {
-    console.log('💾 Saving conversation to Firestore...');
+    console.log('[SAVE] Saving conversation to Firestore...');
+    
+    // Get actual user ID from Firebase Auth
+    const userId = auth().currentUser?.uid || 'anonymous';
+    console.log('[USER] Saving conversation with userId:', userId);
     
     const res = await fetch(`${BASE_URL}/saveConversation`, {
       method: "POST",
@@ -237,7 +253,7 @@ export const saveConversationToFirestore = async (question, answer, model = 'gem
         model,
         type,
         language,
-        userId: 'anonymous' // You can replace this with actual user ID from auth
+        userId: userId // Use actual authenticated user ID
       })
     });
 
@@ -247,11 +263,11 @@ export const saveConversationToFirestore = async (question, answer, model = 'gem
     }
 
     const data = await res.json();
-    console.log(`✅ Conversation saved with ID: ${data.conversationId}`);
+    console.log(`[SUCCESS] Conversation saved with ID: ${data.conversationId}`);
     return data.conversationId;
     
   } catch (error) {
-    console.error('❌ Error saving conversation:', error);
+    console.error('[ERROR] Error saving conversation:', error);
     throw error;
   }
 }

@@ -99,16 +99,16 @@ const Textinput = ({navigation, colors, isDarkMode}) => {
 
     try {
       setLoading(true);
-      console.log('🚀 Starting API call...');
-      console.log('🌐 Language:', selectedLanguage);
+      console.log('[APP] Starting API call...');
+      console.log('[NETWORK] Language:', selectedLanguage);
       
       const result = await getResonance(prompt, selectedLanguage);
-      console.log('✅ API response received');
-      console.log('📊 Full result object:', JSON.stringify(result, null, 2));
-      console.log('📊 Question Type:', result.questionType);
-      console.log('📊 Processing Time:', result.processingTime, 'ms');
-      console.log('📊 Sections:', result.sections ? Object.keys(result.sections) : 'none');
-      console.log('📊 Answer length:', result.answer ? result.answer.length : 0);
+      console.log('[SUCCESS] API response received');
+      console.log('[STATS] Full result object:', JSON.stringify(result, null, 2));
+      console.log('[STATS] Question Type:', result.questionType);
+      console.log('[STATS] Processing Time:', result.processingTime, 'ms');
+      console.log('[STATS] Sections:', result.sections ? Object.keys(result.sections) : 'none');
+      console.log('[STATS] Answer length:', result.answer ? result.answer.length : 0);
       
       if (result) {
         // Sanitize data before saving to Firestore (remove undefined, limit string length)
@@ -125,8 +125,8 @@ const Textinput = ({navigation, colors, isDarkMode}) => {
             'text',
             selectedLanguage
           )
-            .then((conversationId) => console.log('✅ Conversation saved to Firestore:', conversationId))
-            .catch(err => console.error('❌ Error saving conversation:', err.message));
+            .then((conversationId) => console.log('[SUCCESS] Conversation saved to Firestore:', conversationId))
+            .catch(err => console.error('[ERROR] Error saving conversation:', err.message));
         } else {
           // Save to local storage for guest users (non-blocking)
           saveConversationLocal(
@@ -136,13 +136,13 @@ const Textinput = ({navigation, colors, isDarkMode}) => {
             'text'
           )
             .then((conversationId) => {
-              console.log('✅ Conversation saved locally:', conversationId);
+              console.log('[SUCCESS] Conversation saved locally:', conversationId);
               updateGuestStats('text');
             })
-            .catch(err => console.error('❌ Error saving conversation locally:', err.message));
+            .catch(err => console.error('[ERROR] Error saving conversation locally:', err.message));
         }
 
-        console.log('📱 Navigating to Output screen...');
+        console.log('[APP] Navigating to Output screen...');
         
         // Navigate with the full result object including questionType
         navigation.navigate('Output', { 
@@ -166,7 +166,7 @@ const Textinput = ({navigation, colors, isDarkMode}) => {
       }
     } catch (error) {
       setLoading(false);
-      console.error("❌ Error generating response:", error);
+      console.error("[ERROR] Error generating response:", error);
       let errorMessage = error.message;
       
       if (errorMessage.includes('Network request failed')) {

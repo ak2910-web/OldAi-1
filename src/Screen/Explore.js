@@ -15,6 +15,8 @@ import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
+import ProfileIcon from '../components/ProfileIcon';
+import auth from '@react-native-firebase/auth';
 
 const { width } = Dimensions.get('window');
 
@@ -26,8 +28,7 @@ const discoveries = [
     category: 'Mathematics',
     categoryColor: '#FF9500',
     icon: 'circle',
-    // image: require('./zero.png'),
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/0-Indian.svg/1200px-0-Indian.svg.png',
+    imageUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400&q=80',
     ancientInsight: 'Ancient Indian mathematicians introduced the concept of zero, a revolutionary idea that transformed mathematics and paved the way for modern computing.',
     modernResonance: 'Zero is the foundation of binary code, computer science, and digital technology.',
     gradient: ['#FFF8E7', '#FFE4B5'],
@@ -38,8 +39,7 @@ const discoveries = [
     category: 'Science',
     categoryColor: '#3B82F6',
     icon: 'cpu',
-    // image: require('./atom.png'),
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/6/6f/Atom_diagram.png',
+    imageUrl: 'https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?w=400&q=80',
     ancientInsight: "The Vedic texts described the concept of 'Anu,' the smallest indivisible particle of matter, remarkably similar to the modern atomic theory.",
     modernResonance: 'Modern physics confirms atoms as the building blocks of all matter.',
     gradient: ['#E0F2FE', '#DBEAFE'],
@@ -50,8 +50,7 @@ const discoveries = [
     category: 'Medicine',
     categoryColor: '#10B981',
     icon: 'heart',
-    // image: require('./ayurveda.png'),
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/6/6e/Ayurveda.jpg',
+    imageUrl: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&q=80',
     ancientInsight: 'Ayurveda, an ancient Indian system of medicine, emphasizes holistic healing, focusing on the balance of mind, body, and spirit, influencing modern integrative medicine.',
     modernResonance: 'Modern medicine increasingly adopts holistic and preventive care approaches.',
     gradient: ['#F0FDF4', '#DCFCE7'],
@@ -62,8 +61,7 @@ const discoveries = [
     category: 'Astronomy',
     categoryColor: '#8B5CF6',
     icon: 'moon',
-    // image: require('./yuga.png'),
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/2/2c/Yuga_Cycles.png',
+    imageUrl: 'https://images.unsplash.com/photo-1462331940025-496dfbfc7564?w=400&q=80',
     ancientInsight: 'Vedic astronomy described cosmic cycles and the movement of celestial bodies with remarkable accuracy, influencing our understanding of the universe.',
     modernResonance: 'Modern cosmology confirms cyclical patterns in the universe.',
     gradient: ['#F5F3FF', '#EDE9FE'],
@@ -74,8 +72,7 @@ const discoveries = [
     category: 'Wellness',
     categoryColor: '#EC4899',
     icon: 'activity',
-    // image: require('./yoga.png'),
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Yoga_asana.jpg',
+    imageUrl: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=400&q=80',
     ancientInsight: 'Ancient yogic practices unified physical, mental, and spiritual health through systematic exercises and meditation.',
     modernResonance: 'Yoga is now a globally recognized practice for mental health, stress relief, and physical fitness.',
     gradient: ['#FDF2F8', '#FCE7F3'],
@@ -86,8 +83,7 @@ const discoveries = [
     category: 'Mathematics',
     categoryColor: '#FF9500',
     icon: 'hash',
-    // image: require('./decimal.png'),
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/2/2b/Decimal_system.png',
+    imageUrl: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=400&q=80',
     ancientInsight: 'Indian mathematicians developed the decimal system and place-value notation, revolutionizing numerical calculations.',
     modernResonance: 'The decimal system is the global standard for mathematics, science, and commerce.',
     gradient: ['#FFF8E7', '#FFE4B5'],
@@ -155,18 +151,18 @@ const Explore = ({ navigation }) => {
           {/* Image */}
           <LinearGradient
             colors={isDarkMode ? ['#1F2937', '#374151'] : item.gradient}
-            style={[styles.imageContainer, { borderWidth: 1, borderColor: 'red', backgroundColor: '#eee' }]}
+            style={styles.imageContainer}
           >
             {item.imageUrl ? (
               <Image 
                 source={{ uri: item.imageUrl }} 
                 style={styles.cardImage} 
-                resizeMode="cover" 
+                resizeMode="contain" 
                 accessibilityLabel={item.title} 
                 onError={e => { console.log('Image failed to load:', item.imageUrl, e.nativeEvent); }}
               />
             ) : (
-              <View style={[styles.imagePlaceholder, { borderWidth: 1, borderColor: 'blue', backgroundColor: '#ccc' }]}> 
+              <View style={styles.imagePlaceholder}> 
                 <Icon name={item.icon} size={48} color={item.categoryColor} style={{ opacity: 0.5 }} />
               </View>
             )}
@@ -192,7 +188,7 @@ const Explore = ({ navigation }) => {
                   Ancient Insight
                 </Text>
               </View>
-              <Text style={[styles.sectionText, { color: colors.textSecondary }]} numberOfLines={2}>
+              <Text style={[styles.sectionText, { color: colors.textSecondary }]} numberOfLines={3}>
                 {item.ancientInsight}
               </Text>
             </View>
@@ -205,7 +201,7 @@ const Explore = ({ navigation }) => {
                   Modern Resonance
                 </Text>
               </View>
-              <Text style={[styles.sectionText, { color: colors.textSecondary }]} numberOfLines={2}>
+              <Text style={[styles.sectionText, { color: colors.textSecondary }]} numberOfLines={3}>
                 {item.modernResonance}
               </Text>
             </View>
@@ -244,6 +240,17 @@ const Explore = ({ navigation }) => {
             activeOpacity={0.7}
           >
             <Icon name="clock" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Profile')}
+            activeOpacity={0.7}
+          >
+            <ProfileIcon
+              size={36}
+              name={auth().currentUser?.displayName || 'Guest'}
+              imageUri={auth().currentUser?.photoURL}
+              isGuest={!auth().currentUser}
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -420,20 +427,24 @@ const styles = StyleSheet.create({
   },
   categoryScroll: {
     marginTop: 12,
+    maxHeight: 50,
   },
   categoryContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 8,
+    paddingVertical: 4,
+    alignItems: 'center',
   },
   categoryChip: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 20,
     marginRight: 8,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categoryChipText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
   },
   emptyState: {

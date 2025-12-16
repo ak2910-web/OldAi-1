@@ -8,7 +8,7 @@ const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Import our Hybrid Dynamic Output Engine (Solution 3)
-const { getClassificationPrompt, parseClassificationResponse } = require('./questionClassifier');
+const { classifyQuestion } = require('./questionClassifier'); // NEW: Rule-based
 const { getTemplatePrompt } = require('./templateEngine');
 const { formatResponse, extractSections, getPreview } = require('./responseFormatter');
 
@@ -16,6 +16,42 @@ const { formatResponse, extractSections, getPreview } = require('./responseForma
 const RATE_LIMIT = 10; // requests
 const RATE_WINDOW = 60 * 1000; // 1 minute
 const rateLimitMap = {};
+
+// Safe timestamp normalization for mixed data formats
+function normalizeTimestamp(ts) {
+  if (!ts) return null;
+
+  // Firestore Timestamp object
+  if (typeof ts.toDate === 'function') {
+    return ts.toDate();
+  }
+
+  // Already a JS Date
+  if (ts instanceof Date) {
+    return ts;
+  }
+
+  // number (milliseconds) or string (ISO)
+  const d = new Date(ts);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// Global API call throttle (prevent overwhelming Gemini)
+let lastApiCallTime = 0;
+const MIN_API_CALL_INTERVAL = 200; // 200ms between API calls (max 5 calls/sec)
+
+async function throttleApiCall() {
+  const now = Date.now();
+  const timeSinceLastCall = now - lastApiCallTime;
+  
+  if (timeSinceLastCall < MIN_API_CALL_INTERVAL) {
+    const waitTime = MIN_API_CALL_INTERVAL - timeSinceLastCall;
+    console.log(`[THROTTLE] Waiting ${waitTime}ms to respect API rate limit`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+  
+  lastApiCallTime = Date.now();
+}
 
 function getClientIp(req) {
   return (
@@ -60,17 +96,17 @@ if (!GEMINI_API_KEY) {
   console.error("ERROR: GEMINI_API_KEY is not set in environment variables!");
   console.error("Please create a .env file with GEMINI_API_KEY=your_api_key");
 } else {
-  console.log("✅ GEMINI_API_KEY loaded successfully");
+  console.log("[SUCCESS] GEMINI_API_KEY loaded successfully");
 }
 
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Available Gemini models for rotation (to avoid 429 rate limits)
+// Removed non-working models: gemini-2.5-flash-native-audio-dialog (0% success rate)
 const AVAILABLE_MODELS = [
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
   'gemini-2.5-flash-lite',
-  'gemini-2.5-flash-native-audio-dialog',
 ];
 
 // Model rotation state
@@ -90,7 +126,7 @@ const RESET_INTERVAL = 60000; // 1 minute
 const getNextModel = () => {
   // Reset counters if interval passed
   if (Date.now() - lastResetTime > RESET_INTERVAL) {
-    console.log('📊 Model Performance Summary:');
+    console.log('[STATS] Model Performance Summary:');
     AVAILABLE_MODELS.forEach(model => {
       const success = modelSuccessCount[model] || 0;
       const failure = modelFailureCount[model] || 0;
@@ -106,7 +142,7 @@ const getNextModel = () => {
     modelSuccessCount = {};
     modelFailureCount = {};
     lastResetTime = Date.now();
-    console.log('🔄 Reset model usage counters');
+    console.log('[RESET] Reset model usage counters');
   }
 
   // Round-robin selection
@@ -116,8 +152,8 @@ const getNextModel = () => {
   // Track usage
   modelUsageCount[selectedModel] = (modelUsageCount[selectedModel] || 0) + 1;
   
-  console.log(`🎯 Selected model: ${selectedModel} (used ${modelUsageCount[selectedModel]} times)`);
-  console.log(`📊 Model usage stats:`, modelUsageCount);
+  console.log(`[SELECTED] Selected model: ${selectedModel} (used ${modelUsageCount[selectedModel]} times)`);
+  console.log(`[STATS] Model usage stats:`, modelUsageCount);
   
   return selectedModel;
 };
@@ -127,7 +163,7 @@ const getNextModel = () => {
  */
 const recordSuccess = (modelName) => {
   modelSuccessCount[modelName] = (modelSuccessCount[modelName] || 0) + 1;
-  console.log(`✅ Success recorded for ${modelName} (total: ${modelSuccessCount[modelName]})`);
+  console.log(`[SUCCESS] Success recorded for ${modelName} (total: ${modelSuccessCount[modelName]})`);
 };
 
 /**
@@ -135,7 +171,7 @@ const recordSuccess = (modelName) => {
  */
 const recordFailure = (modelName) => {
   modelFailureCount[modelName] = (modelFailureCount[modelName] || 0) + 1;
-  console.log(`❌ Failure recorded for ${modelName} (total: ${modelFailureCount[modelName]})`);
+  console.log(`[ERROR] Failure recorded for ${modelName} (total: ${modelFailureCount[modelName]})`);
 };
 
 /**
@@ -156,9 +192,9 @@ const saveModelStats = async () => {
     };
     
     await db.collection('modelStats').add(statsData);
-    console.log('💾 Model statistics saved to Firestore');
+    console.log('[SAVE] Model statistics saved to Firestore');
   } catch (error) {
-    console.error('❌ Error saving stats:', error.message);
+    console.error('[ERROR] Error saving stats:', error.message);
   }
 };
 
@@ -191,28 +227,28 @@ const getCachedResponse = async (question, language) => {
           timestampMillis = data.timestamp.toMillis();
         } else {
           // Unknown format, return cached response anyway
-          console.log('💾 Cache hit! Returning cached response (unknown timestamp format)');
+          console.log('[CACHE] Cache hit! Returning cached response (unknown timestamp format)');
           return data.response;
         }
         
         const cacheAge = Date.now() - timestampMillis;
         if (cacheAge < 24 * 60 * 60 * 1000) {
-          console.log('💾 Cache hit! Returning cached response');
+          console.log('[CACHE] Cache hit! Returning cached response');
           return data.response;
         } else {
-          console.log('🕐 Cache expired, will fetch new response');
+          console.log('[EXPIRED] Cache expired, will fetch new response');
           // Delete expired cache
           await db.collection('responseCache').doc(cacheKey).delete();
         }
       } else {
         // If timestamp is missing or invalid, return cached response anyway
-        console.log('💾 Cache hit! Returning cached response (no valid timestamp)');
+        console.log('[CACHE] Cache hit! Returning cached response (no valid timestamp)');
         return data.response;
       }
     }
     return null;
   } catch (error) {
-    console.error('❌ Error reading cache:', error.message);
+    console.error('[ERROR] Error reading cache:', error.message);
     return null;
   }
 };
@@ -229,9 +265,9 @@ const saveToCache = async (question, language, response) => {
       response,
       timestamp: Date.now(),
     });
-    console.log('💾 Response cached successfully');
+    console.log('[SAVE] Response cached successfully');
   } catch (error) {
-    console.error('❌ Error saving to cache:', error.message);
+    console.error('[ERROR] Error saving to cache:', error.message);
   }
 };
 
@@ -246,9 +282,9 @@ const saveToSearchHistory = async (question, language, preview) => {
       preview, // First 200 chars of response
       timestamp: Date.now(),
     });
-    console.log('📝 Search saved to history');
+    console.log('[HISTORY] Search saved to history');
   } catch (error) {
-    console.error('❌ Error saving search history:', error.message);
+    console.error('[ERROR] Error saving search history:', error.message);
   }
 };
 
@@ -292,7 +328,13 @@ const callGeminiWithRetry = async (prompt, maxRetries = 3) => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const modelName = getNextModel();
-      console.log(`🔄 Attempt ${attempt + 1}/${maxRetries} with model: ${modelName}`);
+      console.log(`[RETRY] Attempt ${attempt + 1}/${maxRetries} with model: ${modelName}`);
+      
+      // Throttle to prevent overwhelming API
+      await throttleApiCall();
+      
+      console.log('[API-CALL] Calling Google Generative AI (key hidden for security)');
+      
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`,
         {
@@ -309,18 +351,28 @@ const callGeminiWithRetry = async (prompt, maxRetries = 3) => {
           }),
         }
       );
+      
+      // Handle 429 (rate limit) - retry with backoff
       if (response.status === 429) {
-        console.warn(`⚠️ Rate limit (429) hit on ${modelName}, trying next model...`);
+        console.warn(`[RATE-LIMIT] 429 hit on ${modelName}, trying next model...`);
         recordFailure(modelName);
         lastError = new Error(`Rate limit on ${modelName}`);
         const backoffTime = Math.pow(2, attempt) * 500;
-        console.log(`⏳ Waiting ${backoffTime}ms before retry...`);
+        console.log(`[WAIT] Waiting ${backoffTime}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, backoffTime));
         continue;
       }
+      
+      // Handle 503 (overload) - DO NOT RETRY, fail gracefully
+      if (response.status === 503) {
+        console.error(`[OVERLOAD] 503 Service Overloaded on ${modelName} - system busy`);
+        recordFailure(modelName);
+        throw new Error('Gemini API is currently overloaded. Please try again in a moment.');
+      }
+      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`❌ Model ${modelName} error (${response.status}):`, errorText);
+        console.error(`[ERROR] Model ${modelName} error (${response.status})`);
         recordFailure(modelName);
         lastError = new Error(`API error (${response.status}): ${errorText}`);
         const backoffTime = Math.pow(2, attempt) * 500;
@@ -334,25 +386,31 @@ const callGeminiWithRetry = async (prompt, maxRetries = 3) => {
       }
       const candidate = data.candidates[0];
       if (candidate.finishReason === "MAX_TOKENS") {
-        console.warn("⚠️ Response truncated due to MAX_TOKENS");
+        console.warn("[WARNING] Response truncated due to MAX_TOKENS");
       }
       const text = candidate.content?.parts?.[0]?.text || 
                    "No response generated (check finishReason: " + candidate?.finishReason + ")";
-      console.log(`✅ Success with model: ${modelName}`);
+      console.log(`[SUCCESS] Success with model: ${modelName}`);
       recordSuccess(modelName);
       return text;
     } catch (error) {
-      console.error(`❌ Attempt ${attempt + 1} failed:`, error.message);
+      console.error(`[ERROR] Attempt ${attempt + 1} failed:`, error.message);
       lastError = error;
+      
+      // Don't retry on specific errors
+      if (error.message.includes('overloaded')) {
+        throw error; // Fail fast on overload
+      }
+      
       if (attempt < maxRetries - 1) {
         const backoffTime = Math.pow(2, attempt) * 500;
-        console.log(`⏳ Exponential backoff: ${backoffTime}ms`);
+        console.log(`[WAIT] Exponential backoff: ${backoffTime}ms`);
         await new Promise(resolve => setTimeout(resolve, backoffTime));
       }
     }
   }
   // All attempts failed
-  console.error('❌ All Gemini models failed.');
+  console.error('[ERROR] All Gemini models failed.');
   throw lastError || new Error('All Gemini model attempts failed');
 };
 
@@ -369,7 +427,12 @@ const callGeminiVisionWithRetry = async (prompt, imageData, maxRetries = 3) => {
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {
       const modelName = getNextModel();
-      console.log(`🔄 Image attempt ${attempt + 1}/${maxRetries} with model: ${modelName}`);
+      console.log(`[RETRY] Image attempt ${attempt + 1}/${maxRetries} with model: ${modelName}`);
+      
+      // Throttle to prevent overwhelming API
+      await throttleApiCall();
+      
+      console.log('[API-CALL] Calling Google Generative AI for image (key hidden for security)');
       
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`,
@@ -395,20 +458,27 @@ const callGeminiVisionWithRetry = async (prompt, imageData, maxRetries = 3) => {
 
       // Check for rate limit error
       if (response.status === 429) {
-        console.warn(`⚠️ Rate limit (429) hit on ${modelName} for image, trying next model...`);
+        console.warn(`[RATE-LIMIT] 429 hit on ${modelName} for image, trying next model...`);
         recordFailure(modelName);
         lastError = new Error(`Rate limit on ${modelName}`);
         
         // Exponential backoff: 0.5s → 1s → 2s
         const backoffTime = Math.pow(2, attempt) * 500;
-        console.log(`⏳ Waiting ${backoffTime}ms before retry...`);
+        console.log(`[WAIT] Waiting ${backoffTime}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, backoffTime));
         continue;
+      }
+      
+      // Handle 503 (overload) - DO NOT RETRY for images either
+      if (response.status === 503) {
+        console.error(`[OVERLOAD] 503 Service Overloaded on ${modelName} for image - system busy`);
+        recordFailure(modelName);
+        throw new Error('Gemini API is currently overloaded. Please try again in a moment.');
       }
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`❌ Model ${modelName} error (${response.status}):`, errorText);
+        console.error(`[ERROR] Model ${modelName} error (${response.status})`);
         recordFailure(modelName);
         lastError = new Error(`API error (${response.status}): ${errorText}`);
         
@@ -429,52 +499,94 @@ const callGeminiVisionWithRetry = async (prompt, imageData, maxRetries = 3) => {
       const candidate = data.candidates[0];
       
       if (candidate.finishReason === "MAX_TOKENS") {
-        console.warn("⚠️ Image response truncated due to MAX_TOKENS");
+        console.warn("[WARNING] Image response truncated due to MAX_TOKENS");
       }
 
       const text = candidate.content?.parts?.[0]?.text || 
                    "No response generated from image analysis";
 
-      console.log(`✅ Image success with model: ${modelName}`);
+      console.log(`[SUCCESS] Image success with model: ${modelName}`);
       recordSuccess(modelName);
       return text;
 
     } catch (error) {
-      console.error(`❌ Image attempt ${attempt + 1} failed:`, error.message);
+      console.error(`[ERROR] Image attempt ${attempt + 1} failed:`, error.message);
       lastError = error;
       
       if (attempt < maxRetries - 1) {
         // Exponential backoff: 0.5s → 1s → 2s
         const backoffTime = Math.pow(2, attempt) * 500;
-        console.log(`⏳ Exponential backoff: ${backoffTime}ms`);
+        console.log(`[WAIT] Exponential backoff: ${backoffTime}ms`);
         await new Promise(resolve => setTimeout(resolve, backoffTime));
       }
     }
   }
 
   // All attempts failed
-  console.error('❌ All Gemini models failed for image. Consider implementing OpenAI Vision fallback.');
+  console.error('[ERROR] All Gemini models failed for image. Consider implementing OpenAI Vision fallback.');
   throw lastError || new Error('All image model attempts failed');
 };
 
-// System instruction for OldAi
+// System instruction for OldAi - Production-ready, hallucination-resistant
 const OLDAI_SYSTEM_INSTRUCTION = `
-You are OldAi — an expert in ancient Indian wisdom, Vedic mathematics, and Sanskrit philosophy.
-When given a query, provide a clear structured explanation in JSON format.
-Include Sanskrit terms, transliteration, explanation, formula (if any), deeper insight, and modern equivalent.
+You are OldAi, an AI system specialized in ancient Indian knowledge, Vedic mathematics, and Sanskrit-based reasoning.
+
+Your task is to analyze the user query and respond ONLY in valid JSON following the exact schema described below.
+
+GENERAL RULES:
+- Do NOT include any text outside the JSON object.
+- Do NOT invent Sanskrit terms, sutras, or references.
+- If a concept is unknown or unclear, explicitly state that in the "confidence_note" field.
+- Keep explanations clear, structured, and educational.
+- Use simple English for explanations.
+- Preserve cultural and semantic accuracy.
+- Be concise but complete.
+
+OUTPUT JSON SCHEMA:
+{
+  "topic": "string",
+  "category": "vedic | concept | formula | history | arithmetic | misc",
+  "sanskrit_term": "string | null",
+  "transliteration": "string | null",
+  "meaning": "string | null",
+  "vedic_explanation": "string",
+  "steps_or_method": ["string"] | null,
+  "formula": "string | null",
+  "modern_equivalent": "string",
+  "example": "string | null",
+  "deeper_insight": "string | null",
+  "confidence_note": "string"
+}
+
+BEHAVIORAL GUIDELINES:
+- If the question relates to Vedic mathematics, prioritize sutra-based reasoning.
+- If no direct Vedic reference exists, clearly say so.
+- If the query is general knowledge, respond without forcing Vedic mapping.
+- Avoid unnecessary verbosity.
+- Ensure the JSON is syntactically valid.
+
+EXAMPLES:
+- If no formula exists, set "formula": null
+- If Sanskrit term is unknown, set both "sanskrit_term" and "transliteration" to null
 `;
 
 const responseSchema = {
   type: "object",
   properties: {
-    sanskrit_term: { type: "string" },
-    transliteration: { type: "string" },
-    explanation: { type: "string" },
-    formula: { type: "string" },
-    deeper_insight: { type: "string" },
+    topic: { type: "string" },
+    category: { type: "string", enum: ["vedic", "concept", "formula", "history", "arithmetic", "misc"] },
+    sanskrit_term: { type: ["string", "null"] },
+    transliteration: { type: ["string", "null"] },
+    meaning: { type: ["string", "null"] },
+    vedic_explanation: { type: "string" },
+    steps_or_method: { type: ["array", "null"], items: { type: "string" } },
+    formula: { type: ["string", "null"] },
     modern_equivalent: { type: "string" },
+    example: { type: ["string", "null"] },
+    deeper_insight: { type: ["string", "null"] },
+    confidence_note: { type: "string" }
   },
-  required: ["transliteration", "explanation", "modern_equivalent"],
+  required: ["topic", "category", "vedic_explanation", "modern_equivalent", "confidence_note"],
 };
 
 /**
@@ -491,7 +603,7 @@ exports.listModels = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    console.log("📋 Listing available models...");
+    console.log("[LIST] Listing available models...");
     
     const models = await genAI.listModels();
     const modelList = models.map(m => ({
@@ -500,10 +612,10 @@ exports.listModels = functions.https.onRequest(async (req, res) => {
       supportedMethods: m.supportedGenerationMethods
     }));
     
-    console.log("✅ Found models:", modelList.length);
+    console.log("[SUCCESS] Found models:", modelList.length);
     res.json({ models: modelList });
   } catch (error) {
-    console.error("❌ Error listing models:", error);
+    console.error("[ERROR] Error listing models:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -527,8 +639,8 @@ exports.answerQuestion = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    console.log("📝 Request body:", req.body);
-    console.log("📝 Request method:", req.method);
+    console.log("[LOG] Request body:", req.body);
+    console.log("[LOG] Request method:", req.method);
 
     const question = req.body?.question;
     const language = req.body?.language || 'English';
@@ -537,15 +649,15 @@ exports.answerQuestion = functions.https.onRequest(async (req, res) => {
       return res.status(400).json({ error: "No question provided in request body" });
     }
 
-    console.log(`🤖 Processing question: ${question}`);
-    console.log(`🌐 Language: ${language}`);
+    console.log(`[PROCESSING] Processing question: ${question}`);
+    console.log(`[LANGUAGE] Language: ${language}`);
 
     const startTime = Date.now();
 
     // Check cache first
     const cachedResponse = await getCachedResponse(question, language);
     if (cachedResponse) {
-      console.log(`⚡ Returning cached response (saved ${Date.now() - startTime}ms)`);
+      console.log(`[CACHED] Returning cached response (saved ${Date.now() - startTime}ms)`);
       
       // Parse cached response if it's structured
       let parsedCache;
@@ -561,7 +673,7 @@ exports.answerQuestion = functions.https.onRequest(async (req, res) => {
       });
     }
 
-    console.log("🧠 LAYER 1: Classifying question type...");
+    console.log("[AI-LAYER1] LAYER 1: Classifying question type...");
 
     // Language-specific instructions
     let languageInstruction = '';
@@ -727,25 +839,23 @@ Question: ${question}
 
 IMPORTANT: Mix descriptive paragraphs for concepts with clear bullet points for steps, advantages, and applications. Use proper mathematical notation (_{} for subscripts, ^{} for superscripts).${languageInstruction}`;
 
-    console.log("🧠 LAYER 1: Classifying question type...");
+    console.log("[AI-LAYER1] LAYER 1: Classifying question type (rule-based, instant)...");
     
-    // LAYER 1: CLASSIFICATION
-    const classificationPrompt = getClassificationPrompt(question);
-    const classificationResponse = await callGeminiWithRetry(classificationPrompt);
-    const questionType = parseClassificationResponse(classificationResponse);
+    // LAYER 1: FAST RULE-BASED CLASSIFICATION (NO API CALL)
+    const questionType = classifyQuestion(question);
     
-    console.log(`✅ Question classified as: ${questionType}`);
-    console.log(`🧱 LAYER 2: Selecting template for "${questionType}"...`);
+    console.log(`[SUCCESS] Question classified as: ${questionType} (0ms, deterministic)`);
+    console.log(`[AI-LAYER2] LAYER 2: Selecting template for "${questionType}"...`);
     
     // LAYER 2: TEMPLATE SELECTION
     const templatePrompt = getTemplatePrompt(questionType, question, language);
     
-    console.log(`🤖 LAYER 3: Generating AI response...`);
+    console.log(`[AI-LAYER3] LAYER 3: Generating AI response (single call)...`);
     
     // Call Gemini API with templated prompt
     const rawResponse = await callGeminiWithRetry(templatePrompt);
     
-    console.log(`✨ LAYER 4: Formatting response...`);
+    console.log(`[AI-LAYER4] LAYER 4: Formatting response...`);
     
     // LAYER 3: FORMATTING
     const formattedAnswer = formatResponse(rawResponse);
@@ -755,10 +865,10 @@ IMPORTANT: Mix descriptive paragraphs for concepts with clear bullet points for 
     // Token counting
     const tokenCount = countTokens(rawResponse);
     
-    console.log(`✅ Response generated successfully in ${Date.now() - startTime}ms`);
-    console.log(`📊 Question Type: ${questionType}`);
-    console.log(`📊 Token Count: ${tokenCount}`);
-    console.log(`📊 Sections Extracted: ${Object.keys(sections).length}`);
+    console.log(`[SUCCESS] Response generated successfully in ${Date.now() - startTime}ms`);
+    console.log(`[STATS] Question Type: ${questionType}`);
+    console.log(`[STATS] Token Count: ${tokenCount}`);
+    console.log(`[STATS] Sections Extracted: ${Object.keys(sections).length}`);
     
     // Prepare response object
     const responseData = {
@@ -793,7 +903,7 @@ IMPORTANT: Mix descriptive paragraphs for concepts with clear bullet points for 
     
     res.json(responseData);
   } catch (error) {
-    console.error("❌ Error:", error);
+    console.error("[ERROR] Error:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -815,7 +925,7 @@ exports.processImage = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    console.log("📸 Processing image request...");
+    console.log("[IMAGE] Processing image request...");
 
     const { base64Image, mimeType } = req.body;
     
@@ -823,13 +933,13 @@ exports.processImage = functions.https.onRequest(async (req, res) => {
       return res.status(400).json({ error: "No image provided in request body" });
     }
 
-    console.log(`🖼️ Image type: ${mimeType || 'image/jpeg'}`);
-    console.log("🤖 Analyzing image with Gemini Vision...");
+    console.log(`[IMAGE] Image type: ${mimeType || 'image/jpeg'}`);
+    console.log("[ANALYSIS] Analyzing image with Gemini Vision...");
 
     const startTime = Date.now();
     
     const language = req.body?.language || 'English';
-    console.log(`🌐 Language: ${language}`);
+    console.log(`[LANGUAGE] Language: ${language}`);
 
     // Language-specific instructions for image processing
     let languageInstruction = '';
@@ -998,9 +1108,9 @@ IMPORTANT: Mix descriptive paragraphs for concepts with clear bullet points for 
     // Call Gemini Vision API with automatic model rotation and retry
     const text = await callGeminiVisionWithRetry(imagePrompt, imageData);
     
-    console.log(`⏱️ Total image processing took ${Date.now() - startTime}ms`);
-    console.log("✅ Image processed successfully");
-    console.log("📝 Extracted analysis:", text.substring(0, 100) + "...");
+    console.log(`[TIME] Total image processing took ${Date.now() - startTime}ms`);
+    console.log("[SUCCESS] Image processed successfully");
+    console.log("[LOG] Extracted analysis:", text.substring(0, 100) + "...");
 
     // Save to search history
     saveToSearchHistory('Image Analysis', language, text.substring(0, 200)).catch(err =>
@@ -1009,7 +1119,7 @@ IMPORTANT: Mix descriptive paragraphs for concepts with clear bullet points for 
 
     res.json({ answer: text });
   } catch (error) {
-    console.error("❌ Image processing error:", error);
+    console.error("[ERROR] Image processing error:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1029,7 +1139,7 @@ exports.getRecentSearches = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    console.log("📜 Fetching recent searches...");
+    console.log("[HISTORY] Fetching recent searches...");
 
     // Get limit from query params (default 10, max 50)
     const limit = Math.min(parseInt(req.query.limit) || 10, 50);
@@ -1043,19 +1153,20 @@ exports.getRecentSearches = functions.https.onRequest(async (req, res) => {
     const searches = [];
     snapshot.forEach(doc => {
       const data = doc.data();
+      const timestamp = normalizeTimestamp(data.timestamp || data.createdAt);
       searches.push({
         id: doc.id,
         question: data.question,
         language: data.language,
         preview: data.preview,
-        timestamp: data.timestamp?.toDate().toISOString() || null,
+        timestamp: timestamp ? timestamp.toISOString() : null,
       });
     });
 
-    console.log(`✅ Found ${searches.length} recent searches`);
+    console.log(`[SUCCESS] Found ${searches.length} recent searches`);
     res.json({ searches, count: searches.length });
   } catch (error) {
-    console.error("❌ Error fetching search history:", error);
+    console.error("[ERROR] Error fetching search history:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1087,7 +1198,7 @@ exports.saveConversation = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    console.log("💾 Saving conversation to Firestore...");
+    console.log("[SAVE] Saving conversation to Firestore...");
 
     // Prepare conversation data
     const conversationData = {
@@ -1097,14 +1208,13 @@ exports.saveConversation = functions.https.onRequest(async (req, res) => {
       model: model || 'gemini-2.0-flash',
       type: type || 'text',
       language: language || 'English',
-      timestamp: admin.firestore.Timestamp.fromDate(new Date()),
-      createdAt: new Date().toISOString(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(), // Server timestamp only
     };
 
     // Save to Firestore
     const docRef = await db.collection('conversations').add(conversationData);
 
-    console.log(`✅ Conversation saved with ID: ${docRef.id}`);
+    console.log(`[SUCCESS] Conversation saved with ID: ${docRef.id}`);
     
     res.json({ 
       success: true, 
@@ -1112,7 +1222,7 @@ exports.saveConversation = functions.https.onRequest(async (req, res) => {
       message: 'Conversation saved successfully'
     });
   } catch (error) {
-    console.error("❌ Error saving conversation:", error);
+    console.error("[ERROR] Error saving conversation:", error);
     res.status(500).json({ error: error.message });
   }
 });

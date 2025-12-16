@@ -233,17 +233,51 @@ export const formatForDisplay = (text) => {
   
   let formatted = text;
   
-  // Ensure consistent newlines
-  formatted = formatted.replace(/\\n/g, '\n');
+  // Remove escape characters for common symbols
+  formatted = formatted.replace(/\\\*/g, '*');           // \* → *
+  formatted = formatted.replace(/\\\//g, '/');           // \/ → /
+  formatted = formatted.replace(/\\\\/g, '\\');          // \\ → \
+  formatted = formatted.replace(/\\"/g, '"');            // \" → "
+  formatted = formatted.replace(/\\'/g, "'");            // \' → '
+  formatted = formatted.replace(/\\`/g, '`');            // \` → `
+  formatted = formatted.replace(/\\n/g, '\n');           // \n → newline
+  formatted = formatted.replace(/\\t/g, '  ');           // \t → 2 spaces
+  
+  // Clean up markdown bold/italic remnants
+  formatted = formatted.replace(/\*\*\*/g, '');          // Remove ***
+  formatted = formatted.replace(/\*\*/g, '');            // Remove **
+  
+  // Convert common math symbols to proper Unicode
+  formatted = formatted.replace(/\^2/g, '²');            // ^2 → ²
+  formatted = formatted.replace(/\^3/g, '³');            // ^3 → ³
+  formatted = formatted.replace(/\^n/g, 'ⁿ');            // ^n → ⁿ
+  formatted = formatted.replace(/sqrt\(/g, '√(');        // sqrt( → √(
+  formatted = formatted.replace(/\bpi\b/gi, 'π');        // pi → π
+  formatted = formatted.replace(/\btheta\b/gi, 'θ');     // theta → θ
+  formatted = formatted.replace(/\balpha\b/gi, 'α');     // alpha → α
+  formatted = formatted.replace(/\bbeta\b/gi, 'β');      // beta → β
+  formatted = formatted.replace(/\bgamma\b/gi, 'γ');     // gamma → γ
+  formatted = formatted.replace(/\bdelta\b/gi, 'Δ');     // delta → Δ
+  formatted = formatted.replace(/\binfinity\b/gi, '∞');  // infinity → ∞
+  formatted = formatted.replace(/<=/g, '≤');             // <= → ≤
+  formatted = formatted.replace(/>=/g, '≥');             // >= → ≥
+  formatted = formatted.replace(/!=/g, '≠');             // != → ≠
+  formatted = formatted.replace(/\+\/-/g, '±');          // +/- → ±
+  formatted = formatted.replace(/(\d)\s*\*\s*(\d)/g, '$1 × $2');  // 5*3 → 5 × 3 (only between numbers)
+  formatted = formatted.replace(/(\d)\s*\/\s*(\d)/g, '$1 ÷ $2');  // 10/2 → 10 ÷ 2 (only between numbers)
   
   // Add spacing after colons (for key:value pairs)
   formatted = formatted.replace(/:\s*/g, ': ');
   
   // Add spacing after bullet points
   formatted = formatted.replace(/•\s*/g, '• ');
+  formatted = formatted.replace(/\*\s+/g, '• ');         // Convert * bullets to •
   
-  // Collapse excessive newlines
+  // Collapse excessive newlines (but keep paragraph spacing)
   formatted = formatted.replace(/\n{3,}/g, '\n\n');
+  
+  // Clean up extra spaces
+  formatted = formatted.replace(/ {2,}/g, ' ');
   
   return formatted.trim();
 };

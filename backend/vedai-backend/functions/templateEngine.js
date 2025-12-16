@@ -61,25 +61,24 @@ Question: ${question}
 Structure your response EXACTLY as follows:
 
 **${headers.concept || 'Concept'}:**
-[Brief 1-2 sentence description of what we're calculating]
+[One line: What we're solving]
 
 **${headers.vedicSutra || 'Vedic Sutra'}:**
-[Sanskrit sutra name in Devanagari with transliteration]
+[Sanskrit name + transliteration]
 
 **${headers.sanskritMeaning || 'Sanskrit Meaning'}:**
-[English meaning of the sutra]
+[Short meaning in 1 line]
 
 **${headers.vedicSteps || 'Steps (Vedic Method)'}:**
-• Step 1: [First step with clear explanation]
-• Step 2: [Second step with calculation]
-• Step 3: [Continue as needed]
-• Final Answer: [Result]
+• [Concise step with calculation]
+• [Next step with result]
+• [Continue - max 4-5 steps]
+• **Answer: [Result]**
 
 **${headers.modernMethod || 'Modern Method'}:**
-[Show how this would be solved using standard modern arithmetic]
-• Step 1: [Modern approach step 1]
-• Step 2: [Modern approach step 2]
-• Final Answer: [Result]
+• [Standard approach step]
+• [Calculation]
+• **Answer: [Result]**
 
 **${headers.comparison || 'Comparison'}:**
 | Feature | Modern Method | Vedic Method |
@@ -105,15 +104,15 @@ Question: ${question}
 Structure your response EXACTLY as follows:
 
 **${headers.concept || 'Concept'}:**
-[What arithmetic operation or concept is being used]
+[One line concept]
 
 **${headers.formula || 'Formula'}:**
-[Mathematical formula or rule if applicable]
+[Formula only]
 
 **${headers.steps || 'Steps'}:**
-• Step 1: [First step with explanation]
-• Step 2: [Second step with calculation]
-• Step 3: [Continue as needed]
+• [Brief step + calc]
+• [Next step]
+• [Max 3-4 steps]
 
 **${headers.finalAnswer || 'Final Answer'}:**
 [Clear final answer]
@@ -259,7 +258,7 @@ Structure your response EXACTLY as follows:
 [Clear definition of the concept]
 
 **${headers.explanation || 'Explanation'}:**
-[Detailed explanation in 2-3 paragraphs]
+[2-3 bullet points max, each 1 line]
 
 **${headers.example || 'Example'}:**
 [Provide a concrete example demonstrating the concept]

@@ -31,7 +31,7 @@ export const saveConversationLocal = async (question, answer, model = 'gemini-2.
     const limited = conversations.slice(0, 100);
 
     await AsyncStorage.setItem(STORAGE_KEYS.GUEST_CONVERSATIONS, JSON.stringify(limited));
-    console.log('✅ Conversation saved locally');
+    console.log('[SUCCESS] Conversation saved locally');
     return conversationData.id;
   } catch (error) {
     console.error('❌ Error saving conversation locally:', error);
@@ -67,7 +67,7 @@ export const deleteLocalConversation = async (conversationId) => {
     const filtered = conversations.filter(c => c.id !== conversationId);
 
     await AsyncStorage.setItem(STORAGE_KEYS.GUEST_CONVERSATIONS, JSON.stringify(filtered));
-    console.log('✅ Local conversation deleted');
+    console.log('[SUCCESS] Local conversation deleted');
   } catch (error) {
     console.error('❌ Error deleting local conversation:', error);
     throw error;
@@ -147,7 +147,7 @@ export const clearLocalData = async () => {
       STORAGE_KEYS.GUEST_CONVERSATIONS,
       STORAGE_KEYS.GUEST_STATS,
     ]);
-    console.log('✅ Local data cleared');
+    console.log('[SUCCESS] Local data cleared');
   } catch (error) {
     console.error('❌ Error clearing local data:', error);
   }
@@ -175,7 +175,7 @@ export const migrateGuestDataToUser = async (saveToFirestore) => {
       }
     }
 
-    console.log(`✅ Migrated ${migratedCount} conversations to Firestore`);
+    console.log(`[SUCCESS] Migrated ${migratedCount} conversations to Firestore`);
     
     // Clear local data after successful migration
     await clearLocalData();

@@ -11,6 +11,8 @@ import {
   Image,
   ActivityIndicator,
   Modal,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
 import { extractText, getResonance } from '../api/api';
@@ -19,6 +21,8 @@ import Icon from 'react-native-vector-icons/Feather';
 import { useTheme } from '../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import FooterNavigation from '../components/FooterNavigation';
+import ProfileIcon from '../components/ProfileIcon';
+import auth from '@react-native-firebase/auth';
 
 const Imageinput = ({ navigation }) => {
   const { colors, isDarkMode } = useTheme();
@@ -46,23 +50,63 @@ const Imageinput = ({ navigation }) => {
     try {
       setShowImageOptions(false);
       
+      // Request camera permission for Android
+      if (type === 'camera' && Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.CAMERA,
+          {
+            title: 'Camera Permission',
+            message: 'App needs access to your camera to take photos',
+            buttonNeutral: 'Ask Me Later',
+            buttonNegative: 'Cancel',
+            buttonPositive: 'OK',
+          }
+        );
+        
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Alert.alert(
+            'Permission Denied',
+            'Camera permission is required to take photos. Please enable it in settings.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+      
       const options = {
         mediaType: 'photo',
         includeBase64: true,
         maxWidth: 1024,
         maxHeight: 1024,
         quality: 0.8,
+        saveToPhotos: type === 'camera',
       };
 
       const result = type === 'library' 
         ? await launchImageLibrary(options)
         : await launchCamera(options);
 
+      if (result.didCancel) {
+        console.log('[INFO] User cancelled image picker');
+        return;
+      }
+
+      if (result.errorCode) {
+        console.error('[ERROR] Image picker error:', result.errorCode, result.errorMessage);
+        Alert.alert(
+          'Error',
+          result.errorMessage || 'Failed to capture image. Please try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
       if (result.assets?.[0]) {
         setSelectedImage(result.assets[0]);
+        console.log('[SUCCESS] Image selected:', result.assets[0].fileName);
       }
     } catch (err) {
-      console.error('Error selecting image:', err);
+      console.error('[ERROR] Error selecting image:', err);
       Alert.alert('Error', 'Failed to select image. Please try again.');
     }
   };
@@ -120,28 +164,31 @@ const Imageinput = ({ navigation }) => {
             {inputMode === 'image' ? 'Analyze Images' : 'Ask Questions'}
           </Text>
         </View>
-        <View style={styles.placeholder} />
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.7}
+        >
+          <ProfileIcon
+            size={36}
+            name={auth().currentUser?.displayName || 'Guest'}
+            imageUri={auth().currentUser?.photoURL}
+            isGuest={!auth().currentUser}
+          />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Input Mode Toggle */}
-        <View style={styles.modeToggleContainer}>
-          <TouchableOpacity
-            style={[
-              styles.modeButton,
-              { backgroundColor: colors.surface },
-              inputMode === 'image' && styles.modeButtonActive
-            ]}
-            onPress={() => setInputMode('image')}
-            activeOpacity={0.7}
-          >
-            <LinearGradient
-              colors={inputMode === 'image' ? ['#FFD700', '#FF9500'] : ['transparent', 'transparent']}
-              style={styles.modeButtonGradient}
+        {/* Improved Mode Toggle with Slider */}
+        <View style={[styles.modeToggleWrapper, { backgroundColor: colors.surface }]}>
+          <View style={styles.modeToggleContainer}>
+            <TouchableOpacity
+              style={[styles.modeButton, inputMode === 'image' && styles.modeButtonActive]}
+              onPress={() => setInputMode('image')}
+              activeOpacity={0.7}
             >
               <Icon 
                 name="camera" 
-                size={22} 
+                size={20} 
                 color={inputMode === 'image' ? '#fff' : colors.textSecondary} 
               />
               <Text style={[
@@ -150,25 +197,16 @@ const Imageinput = ({ navigation }) => {
               ]}>
                 Image
               </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.modeButton,
-              { backgroundColor: colors.surface },
-              inputMode === 'text' && styles.modeButtonActive
-            ]}
-            onPress={() => setInputMode('text')}
-            activeOpacity={0.7}
-          >
-            <LinearGradient
-              colors={inputMode === 'text' ? ['#FFD700', '#FF9500'] : ['transparent', 'transparent']}
-              style={styles.modeButtonGradient}
+            <TouchableOpacity
+              style={[styles.modeButton, inputMode === 'text' && styles.modeButtonActive]}
+              onPress={() => setInputMode('text')}
+              activeOpacity={0.7}
             >
               <Icon 
                 name="edit-3" 
-                size={22} 
+                size={20} 
                 color={inputMode === 'text' ? '#fff' : colors.textSecondary} 
               />
               <Text style={[
@@ -177,11 +215,24 @@ const Imageinput = ({ navigation }) => {
               ]}>
                 Text
               </Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Animated Slider */}
+          <View style={[
+            styles.modeSlider,
+            { left: inputMode === 'image' ? 4 : '50%' }
+          ]}>
+            <LinearGradient
+              colors={['#FFD700', '#FF9500']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.modeSliderGradient}
+            />
+          </View>
         </View>
 
-        {/* Image Input Section */}
+        {/* Redesigned Image Input Section */}
         {inputMode === 'image' && (
           <View style={styles.imageSection}>
             {selectedImage ? (
@@ -192,7 +243,7 @@ const Imageinput = ({ navigation }) => {
                   resizeMode="cover"
                 />
                 <LinearGradient
-                  colors={['rgba(0,0,0,0.6)', 'transparent']}
+                  colors={['rgba(0,0,0,0.7)', 'transparent', 'rgba(0,0,0,0.7)']}
                   style={styles.imageOverlay}
                 >
                   <TouchableOpacity
@@ -200,46 +251,111 @@ const Imageinput = ({ navigation }) => {
                     onPress={() => setSelectedImage(null)}
                     activeOpacity={0.8}
                   >
-                    <Icon name="x" size={20} color="#fff" />
+                    <Icon name="x" size={18} color="#fff" />
                   </TouchableOpacity>
                 </LinearGradient>
                 
-                <TouchableOpacity
-                  style={[styles.changeImageButton, { backgroundColor: colors.surface }]}
-                  onPress={() => setShowImageOptions(true)}
-                  activeOpacity={0.8}
-                >
-                  <Icon name="refresh-cw" size={18} color="#FF9500" />
-                  <Text style={styles.changeImageText}>Change Image</Text>
-                </TouchableOpacity>
+                <View style={styles.imageActionsContainer}>
+                  <TouchableOpacity
+                    style={[styles.imageActionButton, { backgroundColor: colors.surface }]}
+                    onPress={() => handleSelectImage('camera')}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#FF9500', '#FF6B00']}
+                      style={styles.imageActionGradient}
+                    >
+                      <Icon name="camera" size={20} color="#fff" />
+                      <Text style={styles.imageActionText}>Retake</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[styles.imageActionButton, { backgroundColor: colors.surface }]}
+                    onPress={() => handleSelectImage('library')}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={['#3B82F6', '#2563EB']}
+                      style={styles.imageActionGradient}
+                    >
+                      <Icon name="image" size={20} color="#fff" />
+                      <Text style={styles.imageActionText}>Gallery</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
               </View>
             ) : (
-              <TouchableOpacity
-                style={[styles.imageUploadArea, { backgroundColor: colors.surface }]}
-                onPress={() => setShowImageOptions(true)}
-                activeOpacity={0.7}
-              >
-                <LinearGradient
-                  colors={isDarkMode ? ['#374151', '#1F2937'] : ['#FFF8E7', '#FFE4B5']}
-                  style={styles.imageUploadGradient}
-                >
-                  <View style={styles.uploadIconContainer}>
-                    <Icon name="image" size={48} color="#FF9500" opacity={0.8} />
-                  </View>
-                  <Text style={[styles.imageUploadTitle, { color: colors.text }]}>
-                    Upload or Capture Image
-                  </Text>
-                  <Text style={[styles.imageUploadSubtext, { color: colors.textSecondary }]}>
-                    Take a photo or choose from gallery
-                  </Text>
-                  <View style={styles.uploadHintContainer}>
-                    <Icon name="info" size={14} color={colors.primary} />
-                    <Text style={[styles.uploadHint, { color: colors.textSecondary }]}>
-                      Works with formulas, diagrams & handwritten math
+              <View style={styles.imageUploadContainer}>
+                {/* Quick Action Buttons */}
+                <View style={styles.quickActionsRow}>
+                  <TouchableOpacity
+                    style={[styles.quickActionCard, { backgroundColor: colors.surface }]}
+                    onPress={() => handleSelectImage('camera')}
+                    activeOpacity={0.7}
+                  >
+                    <LinearGradient
+                      colors={isDarkMode ? ['#374151', '#1F2937'] : ['#FFF8E7', '#FFE4B5']}
+                      style={styles.quickActionGradient}
+                    >
+                      <View style={[styles.quickActionIconContainer, { backgroundColor: '#FF9500' + '20' }]}>
+                        <Icon name="camera" size={32} color="#FF9500" />
+                      </View>
+                      <Text style={[styles.quickActionTitle, { color: colors.text }]}>Take Photo</Text>
+                      <Text style={[styles.quickActionSubtitle, { color: colors.textSecondary }]}>
+                        Capture instantly
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.quickActionCard, { backgroundColor: colors.surface }]}
+                    onPress={() => handleSelectImage('library')}
+                    activeOpacity={0.7}
+                  >
+                    <LinearGradient
+                      colors={isDarkMode ? ['#374151', '#1F2937'] : ['#E0F2FE', '#DBEAFE']}
+                      style={styles.quickActionGradient}
+                    >
+                      <View style={[styles.quickActionIconContainer, { backgroundColor: '#3B82F6' + '20' }]}>
+                        <Icon name="image" size={32} color="#3B82F6" />
+                      </View>
+                      <Text style={[styles.quickActionTitle, { color: colors.text }]}>From Gallery</Text>
+                      <Text style={[styles.quickActionSubtitle, { color: colors.textSecondary }]}>
+                        Choose existing
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Feature Highlights */}
+                <View style={[styles.featuresContainer, { backgroundColor: colors.surface }]}>
+                  <View style={styles.featureItem}>
+                    <View style={[styles.featureIcon, { backgroundColor: '#10B981' + '20' }]}>
+                      <Icon name="check-circle" size={18} color="#10B981" />
+                    </View>
+                    <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                      Handwritten formulas
                     </Text>
                   </View>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <View style={styles.featureItem}>
+                    <View style={[styles.featureIcon, { backgroundColor: '#8B5CF6' + '20' }]}>
+                      <Icon name="check-circle" size={18} color="#8B5CF6" />
+                    </View>
+                    <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                      Math diagrams
+                    </Text>
+                  </View>
+                  <View style={styles.featureItem}>
+                    <View style={[styles.featureIcon, { backgroundColor: '#F59E0B' + '20' }]}>
+                      <Icon name="check-circle" size={18} color="#F59E0B" />
+                    </View>
+                    <Text style={[styles.featureText, { color: colors.textSecondary }]}>
+                      Printed equations
+                    </Text>
+                  </View>
+                </View>
+              </View>
             )}
           </View>
         )}
@@ -444,127 +560,177 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
   },
-  // Mode Toggle
-  modeToggleContainer: {
-    flexDirection: 'row',
+  // Improved Mode Toggle
+  modeToggleWrapper: {
     marginTop: 20,
-    gap: 12,
-  },
-  modeButton: {
-    flex: 1,
     borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  modeButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 8,
-  },
-  modeButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // Image Section
-  imageSection: {
-    marginTop: 20,
-  },
-  imageUploadArea: {
-    borderRadius: 20,
-    overflow: 'hidden',
+    padding: 4,
     elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: 4,
+    position: 'relative',
   },
-  imageUploadGradient: {
-    paddingVertical: 48,
-    paddingHorizontal: 24,
-    alignItems: 'center',
+  modeToggleContainer: {
+    flexDirection: 'row',
+    position: 'relative',
+    zIndex: 2,
   },
-  uploadIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-  },
-  imageUploadTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  imageUploadSubtext: {
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  uploadHintContainer: {
+  modeButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
+    justifyContent: 'center',
+    paddingVertical: 14,
+    gap: 8,
+    borderRadius: 12,
+    zIndex: 2,
   },
-  uploadHint: {
-    fontSize: 12,
+  modeButtonActive: {
+    // Active state handled by slider
   },
-  selectedImageContainer: {
-    position: 'relative',
+  modeSlider: {
+    position: 'absolute',
+    top: 4,
+    width: '48%',
+    height: 48,
+    borderRadius: 12,
+    overflow: 'hidden',
+    zIndex: 1,
+  },
+  modeSliderGradient: {
+    flex: 1,
+    borderRadius: 12,
+  },
+  modeButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // Redesigned Image Section
+  imageSection: {
+    marginTop: 24,
+  },
+  imageUploadContainer: {
+    gap: 20,
+  },
+  quickActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickActionCard: {
+    flex: 1,
     borderRadius: 20,
     overflow: 'hidden',
     elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
     shadowRadius: 8,
+  },
+  quickActionGradient: {
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 12,
+  },
+  quickActionIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  quickActionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  quickActionSubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  featuresContainer: {
+    borderRadius: 16,
+    padding: 20,
+    gap: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  featureIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  selectedImageContainer: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
   },
   selectedImage: {
     width: '100%',
-    height: 300,
+    height: 360,
   },
   imageOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    padding: 12,
+    padding: 16,
   },
   removeImageButton: {
     alignSelf: 'flex-end',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
-  changeImageButton: {
+  imageActionsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  imageActionButton: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+    elevation: 3,
+  },
+  imageActionGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 14,
     gap: 8,
-    marginTop: 12,
-    paddingVertical: 12,
-    borderRadius: 12,
-    elevation: 2,
   },
-  changeImageText: {
-    fontSize: 16,
-    color: '#FF9500',
+  imageActionText: {
+    fontSize: 15,
     fontWeight: '600',
+    color: '#fff',
   },
   // Text Section
   textSection: {

@@ -39,7 +39,7 @@ const Homescreen = ({navigation}) => {
   useEffect(() => {
     // Auth state listener
     const unsubscribe = auth().onAuthStateChanged((user) => {
-      console.log('👤 Auth state changed:', user ? `User: ${user.email}` : 'Guest');
+      console.log('[USER] Auth state changed:', user ? `User: ${user.email}` : 'Guest');
       setCurrentUser(user);
       setIsGuest(!user);
       
@@ -59,12 +59,12 @@ const Homescreen = ({navigation}) => {
 
   const loadConversations = async () => {
     try {
-      console.log('📚 Loading conversations...');
+      console.log('[FETCH] Loading conversations...');
       const convos = await getUserConversations(10); // Fetch last 10
-      console.log(`✅ Loaded ${convos.length} conversations`);
+      console.log(`[SUCCESS] Loaded ${convos.length} conversations`);
       setConversations(convos);
     } catch (error) {
-      console.error('❌ Error loading conversations:', error);
+      console.error('[ERROR] Error loading conversations:', error);
       console.error('Make sure Firestore emulator is running on port 8080');
     }
   };
@@ -72,12 +72,12 @@ const Homescreen = ({navigation}) => {
   const loadRecentSearches = async () => {
     try {
       setLoadingSearches(true);
-      console.log('📜 Loading recent searches...');
+      console.log('[HISTORY] Loading recent searches...');
       const searches = await getRecentSearches(5); // Fetch last 5
-      console.log(`✅ Loaded ${searches.length} recent searches`);
+      console.log(`[SUCCESS] Loaded ${searches.length} recent searches`);
       setRecentSearches(searches);
     } catch (error) {
-      console.error('❌ Error loading recent searches:', error);
+      console.error('[ERROR] Error loading recent searches:', error);
     } finally {
       setLoadingSearches(false);
     }
@@ -129,7 +129,7 @@ const Homescreen = ({navigation}) => {
 
   const handleConversationPress = (conversation) => {
     toggleDrawer();
-    console.log('📖 Opening conversation:', conversation.id);
+    console.log('[READ] Opening conversation:', conversation.id);
     // Navigate to output with this conversation
     navigation.navigate('Output', { 
       result: conversation.answer,  // Changed from 'results' to 'result' and 'response' to 'answer'
@@ -138,7 +138,7 @@ const Homescreen = ({navigation}) => {
   };
 
   const handleRecentSearchPress = (search) => {
-    console.log('🔍 Repeating search:', search.question);
+    console.log('[SEARCH] Repeating search:', search.question);
     // Navigate to text input with the question pre-filled
     navigation.navigate('Textinput', {
       prefilledQuestion: search.question,

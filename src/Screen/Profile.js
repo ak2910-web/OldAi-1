@@ -48,24 +48,53 @@ const Profile = ({ navigation }) => {
       });
       // Load user stats from Firestore
       try {
+        console.log('[PROFILE] Loading user conversations...');
         const conversations = await getUserConversations(1000);
+        console.log('[PROFILE] Found conversations:', conversations.length);
+        
         const textCount = conversations.filter(c => c.type === 'text').length;
         const imageCount = conversations.filter(c => c.type === 'image').length;
+        
+        // Calculate last used date
+        let lastUsedDate = null;
+        if (conversations.length > 0 && conversations[0]) {
+          const conv = conversations[0];
+          // Try different timestamp fields
+          const timestamp = conv.timestamp || conv.createdAt;
+          if (timestamp) {
+            if (typeof timestamp === 'string') {
+              lastUsedDate = timestamp;
+            } else if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+              lastUsedDate = timestamp.toDate().toISOString();
+            } else if (timestamp instanceof Date) {
+              lastUsedDate = timestamp.toISOString();
+            }
+          }
+        }
         
         setStats({
           totalConversations: conversations.length,
           textQuestions: textCount,
           imageQuestions: imageCount,
-          lastUsed: conversations[0]?.timestamp || conversations[0]?.createdAt,
+          lastUsed: lastUsedDate,
           memberSince: currentUser.metadata.creationTime,
         });
+        
+        console.log('[PROFILE] Stats loaded:', {
+          total: conversations.length,
+          text: textCount,
+          image: imageCount,
+        });
       } catch (error) {
-        console.error('Error loading stats:', error);
+        console.error('[ERROR] Error loading stats:', error);
+        console.error('[ERROR] Error details:', error.message);
       }
     } else {
       setUser(null);
       // Load guest stats
+      console.log('[PROFILE] Loading guest stats...');
       const guestStats = await getGuestStats();
+      console.log('[PROFILE] Guest stats:', guestStats);
       if (guestStats) {
         setStats({
           totalConversations: guestStats.totalQuestions || 0,
@@ -204,9 +233,9 @@ const Profile = ({ navigation }) => {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}> 
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Use native navigator header — remove in-screen back button/title to avoid duplicates */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}> 
+      <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <View style={styles.headerContent}>
           <View style={styles.placeholder} />
         </View>
@@ -214,14 +243,13 @@ const Profile = ({ navigation }) => {
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.profileContent}>
         <View style={styles.avatarContainer}>
-          <ProfileIcon 
-            size={100} 
-            name={user?.displayName || 'VedAI User'} 
+          <ProfileIcon
+            size={100}
+            name={user?.displayName || 'VedAI User'}
             imageUri={user?.photoURL}
-            showBadge={true}
-          />
-          <TouchableOpacity 
-            style={[styles.editAvatarButton, { backgroundColor: colors.primary }]} 
+            showBadge={true} />
+          <TouchableOpacity
+            style={[styles.editAvatarButton, { backgroundColor: colors.primary }]}
             onPress={handleEditProfile}
           >
             <Icon name="edit-2" size={16} color="white" />
@@ -235,53 +263,119 @@ const Profile = ({ navigation }) => {
           <Text style={styles.mainEditButtonText}>Edit Profile</Text>
         </TouchableOpacity>
 
-        {/* Statistics Card */}
+        {/* Enhanced Statistics Card */}
         <View style={[styles.card, { backgroundColor: colors.card }]}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Your Activity</Text>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Your Activity</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('History')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.viewAllButton}>
+                <Text style={styles.viewAllText}>View All</Text>
+                <Icon name="chevron-right" size={16} color="#FF9500" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
               <View style={[styles.statIconContainer, { backgroundColor: colors.primary + '20' }]}>
                 <Icon name="message-circle" size={24} color={colors.primary} />
               </View>
-              <Text style={[styles.statValue, { color: colors.text }]}>{stats.totalConversations}</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {stats.totalConversations}
+              </Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Chats</Text>
             </View>
+
             <View style={styles.statItem}>
               <View style={[styles.statIconContainer, { backgroundColor: '#3B82F6' + '20' }]}>
                 <Icon name="edit" size={24} color="#3B82F6" />
               </View>
-              <Text style={[styles.statValue, { color: colors.text }]}>{stats.textQuestions}</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {stats.textQuestions}
+              </Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Text Questions</Text>
             </View>
+
             <View style={styles.statItem}>
               <View style={[styles.statIconContainer, { backgroundColor: '#10B981' + '20' }]}>
                 <Icon name="image" size={24} color="#10B981" />
               </View>
-              <Text style={[styles.statValue, { color: colors.text }]}>{stats.imageQuestions}</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {stats.imageQuestions}
+              </Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Image Questions</Text>
             </View>
           </View>
-          {stats.memberSince && (
-            <View style={styles.memberInfo}>
-              <Icon name="calendar" size={16} color={colors.textSecondary} />
-              <Text style={[styles.memberText, { color: colors.textSecondary }]}>
-                Member since {new Date(stats.memberSince).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-              </Text>
-            </View>
-          )}
+
+          {/* Additional Stats Row */}
+          <View style={[styles.additionalStats, { borderTopColor: colors.border }]}>
+            {stats.lastUsed && (
+              <View style={styles.additionalStatItem}>
+                <Icon name="clock" size={16} color={colors.textSecondary} />
+                <Text style={[styles.additionalStatText, { color: colors.textSecondary }]}>
+                  Last active: {new Date(stats.lastUsed).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric'
+                  })}
+                </Text>
+              </View>
+            )}
+
+            {stats.memberSince && (
+              <View style={styles.additionalStatItem}>
+                <Icon name="calendar" size={16} color={colors.textSecondary} />
+                <Text style={[styles.additionalStatText, { color: colors.textSecondary }]}>
+                  Member since {new Date(stats.memberSince).toLocaleDateString('en-US', {
+                    month: 'short',
+                    year: 'numeric'
+                  })}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.card }]}> 
-          <Text style={[styles.cardTitle, { color: colors.text }]}>Account</Text>
-          <View style={styles.row}>
-            <Text style={[styles.label, { color: colors.textSecondary }]}>Email</Text>
-            <View style={styles.rowRight}>
-              <Text style={[styles.value, { color: colors.text }]} numberOfLines={1}>{user?.email}</Text>
+        {/* Account Info Card */}
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Account Information</Text>
+
+          <View style={styles.infoRow}>
+            <View style={styles.infoLeft}>
+              <Icon name="mail" size={20} color={colors.textSecondary} />
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Email</Text>
+            </View>
+            <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>
+              {user?.email}
+            </Text>
+          </View>
+
+          <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
+            <View style={styles.infoLeft}>
+              <Icon name="user" size={20} color={colors.textSecondary} />
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Display Name</Text>
+            </View>
+            <Text style={[styles.infoValue, { color: colors.text }]} numberOfLines={1}>
+              {user?.displayName}
+            </Text>
+          </View>
+
+          <View style={[styles.infoRow, { borderTopColor: colors.border }]}>
+            <View style={styles.infoLeft}>
+              <Icon name="shield" size={20} color={colors.textSecondary} />
+              <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>Account Type</Text>
+            </View>
+            <View style={styles.accountBadge}>
+              <Text style={styles.accountBadgeText}>Verified</Text>
             </View>
           </View>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.card }]}> 
+        {/* Settings Section */}
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Settings</Text>
           <View style={styles.settingRow}>
             <Text style={[styles.settingLabel, { color: colors.text }]}>Notifications</Text>
@@ -293,6 +387,50 @@ const Profile = ({ navigation }) => {
           </View>
         </View>
 
+        {/* Legal Section */}
+        <View style={[styles.card, { backgroundColor: colors.card }]}>
+    <Text style={[styles.cardTitle, { color: colors.text }]}>Legal</Text>
+
+    <TouchableOpacity
+      style={[styles.legalOption, { borderBottomColor: colors.border }]}
+      onPress={() => navigation.navigate('LegalScreen', { type: 'privacy' })}
+      activeOpacity={0.7}
+    >
+      <View style={styles.legalOptionLeft}>
+        <View style={[styles.legalIconContainer, { backgroundColor: '#10B981' + '20' }]}>
+          <Icon name="shield" size={20} color="#10B981" />
+        </View>
+        <View style={styles.legalTextContainer}>
+          <Text style={[styles.legalOptionTitle, { color: colors.text }]}>Privacy Policy</Text>
+          <Text style={[styles.legalOptionSubtitle, { color: colors.textSecondary }]}>
+            How we protect your data
+          </Text>
+        </View>
+      </View>
+      <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+    </TouchableOpacity>
+
+    <TouchableOpacity
+      style={styles.legalOption}
+      onPress={() => navigation.navigate('LegalScreen', { type: 'terms' })}
+      activeOpacity={0.7}
+    >
+      <View style={styles.legalOptionLeft}>
+        <View style={[styles.legalIconContainer, { backgroundColor: '#3B82F6' + '20' }]}>
+          <Icon name="file-text" size={20} color="#3B82F6" />
+        </View>
+        <View style={styles.legalTextContainer}>
+          <Text style={[styles.legalOptionTitle, { color: colors.text }]}>Terms & Conditions</Text>
+          <Text style={[styles.legalOptionSubtitle, { color: colors.textSecondary }]}>
+            Rules and guidelines
+          </Text>
+        </View>
+      </View>
+      <Icon name="chevron-right" size={20} color={colors.textSecondary} />
+    </TouchableOpacity>
+  </View>
+
+        {/* Logout Button */}
         <TouchableOpacity style={[styles.logoutButtonFull, { backgroundColor: '#fff', borderColor: '#F87171', borderWidth: 1 }]} onPress={handleLogout}>
           <Text style={[styles.logoutTextFull, { color: '#F87171' }]}>Logout</Text>
         </TouchableOpacity>
@@ -487,6 +625,72 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
   },
+  // Enhanced Profile Styles
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF9500',
+  },
+  additionalStats: {
+    borderTopWidth: 1,
+    paddingTop: 16,
+    marginTop: 16,
+    gap: 12,
+  },
+  additionalStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  additionalStatText: {
+    fontSize: 13,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'transparent',
+  },
+  infoLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  infoValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'right',
+  },
+  accountBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  accountBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
+  },
   memberInfo: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -635,44 +839,47 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FF9500',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   signupButtonText: {
-    color: '#FF9500',
+    color: '#1F2937',
     fontSize: 18,
     fontWeight: '600',
   },
-  continueGuestButton: {
-    marginTop: 16,
-    paddingVertical: 12,
-  },
-  continueGuestText: {
-    color: '#666',
-    fontSize: 16,
-  },
-  guestFeatures: {
-    width: '100%',
-    marginTop: 32,
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-  },
-  guestFeaturesTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F1F1F',
-    marginBottom: 16,
-  },
-  featureItem: {
+  // Legal Section Styles
+  legalOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  legalOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
     gap: 12,
   },
-  featureText: {
-    fontSize: 15,
-    color: '#333',
+  legalIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  legalTextContainer: {
+    flex: 1,
+  },
+  legalOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  legalOptionSubtitle: {
+    fontSize: 13,
   },
 });
 

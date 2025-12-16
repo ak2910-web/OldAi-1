@@ -22,6 +22,7 @@ import FirestoreTest from './src/Screen/FirestoreTest'
 import Explore from './src/Screen/Explore'
 import DiscoveryDetail from './src/Screen/DiscoveryDetail'
 import History from './src/Screen/History'
+import LegalScreen from './src/Screen/LegalScreen'
 
 const Stack = createNativeStackNavigator();
 const App = () => {
@@ -55,6 +56,7 @@ const App = () => {
   <Stack.Screen name='Explore' component={Explore} options={{ headerShown: false }} />
   <Stack.Screen name='DiscoveryDetail' component={DiscoveryDetail} options={{ headerShown: false }} />
   <Stack.Screen name='History' component={History} options={{ headerShown: false }} />
+  <Stack.Screen name='LegalScreen' component={LegalScreen} options={{ headerShown: false }} />
 
 
 

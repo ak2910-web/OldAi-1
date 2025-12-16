@@ -18,7 +18,7 @@ const enableOfflinePersistence = async () => {
       cacheSizeBytes: firestore.CACHE_SIZE_UNLIMITED,
     });
     persistenceEnabled = true;
-    console.log('✅ Firestore offline persistence enabled');
+    console.log('[SUCCESS] Firestore offline persistence enabled');
   } catch (error) {
     console.warn('⚠️ Failed to enable offline persistence:', error);
   }
@@ -30,7 +30,7 @@ enableOfflinePersistence();
 // Enable Firestore emulator for development
 if (__DEV__) {
   firestore().useEmulator('10.0.2.2', 8080);
-  console.log('🔧 Firestore emulator enabled at 10.0.2.2:8080');
+  console.log('[CONFIG] Firestore emulator enabled at 10.0.2.2:8080');
 }
 
 // Collection names
@@ -71,7 +71,7 @@ export const saveConversation = async (question, answer, model = 'gemini-2.0-fla
       .collection(COLLECTIONS.CONVERSATIONS)
       .add(conversationData);
 
-    console.log('✅ Conversation saved with ID:', docRef.id);
+    console.log('[SUCCESS] Conversation saved with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('❌ Error saving conversation:', error);
@@ -87,7 +87,7 @@ export const saveConversation = async (question, answer, model = 'gemini-2.0-fla
 export const getUserConversations = async (limit = 50) => {
   try {
     const userId = auth().currentUser?.uid || 'anonymous';
-    console.log(`📚 Fetching conversations for user: ${userId}`);
+    console.log(`[FETCH] Fetching conversations for user: ${userId}`);
 
     const snapshot = await firestore()
       .collection(COLLECTIONS.CONVERSATIONS)
@@ -107,7 +107,7 @@ export const getUserConversations = async (limit = 50) => {
       });
     });
 
-    console.log(`✅ Fetched ${conversations.length} conversations (${snapshot.metadata.fromCache ? 'from cache' : 'from server'})`);
+    console.log(`[SUCCESS] Fetched ${conversations.length} conversations (${snapshot.metadata.fromCache ? 'from cache' : 'from server'})`);
     return conversations;
   } catch (error) {
     console.error('❌ Error fetching conversations:', error);
@@ -164,7 +164,7 @@ export const deleteConversation = async (conversationId) => {
       .doc(conversationId)
       .delete();
 
-    console.log('✅ Conversation deleted:', conversationId);
+    console.log('[SUCCESS] Conversation deleted:', conversationId);
   } catch (error) {
     console.error('❌ Error deleting conversation:', error);
     throw error;
@@ -204,10 +204,10 @@ export const searchConversations = async (keyword) => {
       }
     });
 
-    console.log(`✅ Found ${conversations.length} matching conversations`);
+    console.log(`[SUCCESS] Found ${conversations.length} matching conversations`);
     return conversations;
   } catch (error) {
-    console.error('❌ Error searching conversations:', error);
+    console.error('[ERROR] Error searching conversations:', error);
     throw error;
   }
 };
@@ -240,7 +240,7 @@ export const getUserStats = async () => {
       }
     });
 
-    console.log('✅ User stats:', stats);
+    console.log('[SUCCESS] User stats:', stats);
     return stats;
   } catch (error) {
     console.error('❌ Error fetching stats:', error);
@@ -254,7 +254,7 @@ export const getUserStats = async () => {
  */
 export const testFirestoreConnection = async () => {
   try {
-    console.log('🔍 Testing Firestore connection...');
+    console.log('[TEST] Testing Firestore connection...');
     
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => 
@@ -271,7 +271,7 @@ export const testFirestoreConnection = async () => {
 
     await Promise.race([writePromise, timeoutPromise]);
 
-    console.log('✅ Firestore connection test successful!');
+    console.log('[SUCCESS] Firestore connection test successful!');
     return true;
   } catch (error) {
     console.error('❌ Firestore connection test failed:', error);

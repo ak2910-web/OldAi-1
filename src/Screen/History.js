@@ -14,6 +14,7 @@ import LinearGradient from 'react-native-linear-gradient';
 import auth from '@react-native-firebase/auth';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
+import ProfileIcon from '../components/ProfileIcon';
 import { getUserConversations, deleteConversation } from '../services/firebaseService';
 import {
   getLocalConversations,
@@ -48,7 +49,7 @@ const History = ({ navigation }) => {
         try {
           data = await getUserConversations(50);
           if (data.length > 0 && data[0].fromCache) {
-            console.log('📱 Loaded conversations from offline cache');
+            console.log('[OFFLINE] Loaded conversations from offline cache');
           }
         } catch (error) {
           console.error('Failed to load from Firestore, falling back to local:', error);
@@ -186,7 +187,17 @@ const History = ({ navigation }) => {
         <Text style={[styles.headerTitle, { color: colors.text }]}>
           {isGuest ? 'Saved Chats' : 'History'}
         </Text>
-        <View style={styles.placeholder} />
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.7}
+        >
+          <ProfileIcon
+            size={36}
+            name={auth().currentUser?.displayName || 'Guest'}
+            imageUri={auth().currentUser?.photoURL}
+            isGuest={!auth().currentUser}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Guest Banner */}

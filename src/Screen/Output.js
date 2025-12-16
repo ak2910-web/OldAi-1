@@ -9,12 +9,14 @@ import {
   Alert,
   StatusBar,
   Dimensions,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
-import { formatResponse } from '../api/api';
+import { formatResponse, getResonance } from '../api/api';
 import { parseAIResponse, stripMarkdown, formatForDisplay } from '../utils/textParser';
 
 const { width } = Dimensions.get('window');
@@ -105,7 +107,7 @@ const Output = ({ route, navigation }) => {
     if (!sections || Object.keys(sections).length === 0) return null;
     
     return {
-      concept: sections.concept || '',
+      concept: sections.concept || sections.definition || '',
       sutra: sections.vedic_sutra || sections.sutra || '',
       sanskritName: sections.sanskrit_meaning || sections.sanskritName || '',
       vedicMethod: sections.steps_vedic_method || sections.revised_steps_vedic_method_illustrating_the_principle || '',
@@ -113,8 +115,10 @@ const Output = ({ route, navigation }) => {
       comparison: sections.comparison || '',
       finalAnswer: sections.final_answer || sections.finalAnswer || '',
       formula: sections.formula || '',
-      steps: sections.steps || sections.step_by_step || '',
-      explanation: sections.explanation || '',
+      steps: sections.steps || sections.step_by_step || sections.derivationSteps || '',
+      explanation: sections.explanation || sections.intro || sections.definition || '',
+      example: sections.example || '',
+      application: sections.application || sections.applications || '',
     };
   };
   
@@ -123,39 +127,41 @@ const Output = ({ route, navigation }) => {
     ? mapApiSections(apiSections)
     : parseAIResponse(safeResult);
   
-  console.log('🔍 API Sections received:', apiSections ? Object.keys(apiSections).filter(k => apiSections[k]) : 'none');
-  console.log('🔍 Mapped sections:', parsedSections ? Object.keys(parsedSections).filter(k => parsedSections[k]) : 'none');
+  console.log('[DEBUG] API Sections received:', apiSections ? Object.keys(apiSections).filter(k => apiSections[k]) : 'none');
+  console.log('[DEBUG] Mapped sections:', parsedSections ? Object.keys(parsedSections).filter(k => parsedSections[k]) : 'none');
 
   // MathView removed: fallback to plain text only
   const { colors, isDarkMode } = useTheme();
   const [copied, setCopied] = useState(false);
+  const [followUpQuestion, setFollowUpQuestion] = useState('');
+  const [isAskingFollowUp, setIsAskingFollowUp] = useState(false);
 
   // For short/expandable results
   const [showFull, setShowFull] = useState(false);
 
   // Debug logging
-  console.log('📄 Output screen loaded');
-   console.log('📦 Full route.params:', JSON.stringify(route.params, null, 2));
-  console.log('📝 Prompt:', (prompt || '').substring(0, 50));
-  console.log('📊 Result type:', typeof result);
-  console.log('📊 Result length:', (safeResult || '').length);
-  console.log('🔍 Result preview:', (safeResult || '').substring(0, 200));
-  console.log('🏷️ Question Type:', questionType);
-  console.log('📦 Sections received:', apiSections);
-  console.log('⏱️ Processing Time:', processingTime, 'ms');
+  console.log('[OUTPUT] Output screen loaded');
+   console.log('[OUTPUT] Full route.params:', JSON.stringify(route.params, null, 2));
+  console.log('[LOG] Prompt:', (prompt || '').substring(0, 50));
+  console.log('[STATS] Result type:', typeof result);
+  console.log('[STATS] Result length:', (safeResult || '').length);
+  console.log('[DEBUG] Result preview:', (safeResult || '').substring(0, 200));
+  console.log('[TAG] Question Type:', questionType);
+  console.log('[OUTPUT] Sections received:', apiSections);
+  console.log('[TIME] Processing Time:', processingTime, 'ms');
   
   // Question type labels and icons
   const questionTypeLabels = {
-    vedic: { label: 'Vedic Math', icon: '🕉️', color: '#FF9500' },
-    arithmetic: { label: 'Arithmetic', icon: '🔢', color: '#3B82F6' },
-    algebra: { label: 'Algebra', icon: '📐', color: '#10B981' },
-    geometry: { label: 'Geometry', icon: '△', color: '#8B5CF6' },
-    trigonometry: { label: 'Trigonometry', icon: '📊', color: '#EC4899' },
-    formula: { label: 'Formula', icon: '∑', color: '#F59E0B' },
-    concept: { label: 'Concept', icon: '💡', color: '#06B6D4' },
-    word_problem: { label: 'Word Problem', icon: '📝', color: '#14B8A6' },
-    history: { label: 'History', icon: '📜', color: '#A855F7' },
-    misc: { label: 'General', icon: '📚', color: '#6B7280' }
+    vedic: { label: 'Vedic Math', color: '#FF9500' },
+    arithmetic: { label: 'Arithmetic', color: '#3B82F6' },
+    algebra: { label: 'Algebra',  color: '#10B981' },
+    geometry: { label: 'Geometry', color: '#8B5CF6' },
+    trigonometry: { label: 'Trigonometry', color: '#EC4899' },
+    formula: { label: 'Formula', color: '#F59E0B' },
+    concept: { label: 'Concept',  color: '#06B6D4' },
+    word_problem: { label: 'Word Problem',  color: '#14B8A6' },
+    history: { label: 'History', color: '#A855F7' },
+    misc: { label: 'General', color: '#6B7280' }
   };
   
   const typeInfo = questionTypeLabels[questionType] || questionTypeLabels.misc;
@@ -190,7 +196,7 @@ const Output = ({ route, navigation }) => {
     const isHindi = text.includes('प्राचीन वैदिक') || text.includes('विषय');
     const isSanskrit = text.includes('प्राचीन वैदिक दृष्टिः') || text.includes('विषयः');
     
-    console.log('🌐 Detected language - Hindi:', isHindi, 'Sanskrit:', isSanskrit);
+    console.log('[LANG] Detected language - Hindi:', isHindi, 'Sanskrit:', isSanskrit);
 
     // Extract main topic - Works for all languages
     // Look for text between ** markers or after first heading
@@ -324,20 +330,49 @@ const Output = ({ route, navigation }) => {
     : parseComparisonResponse(safeResult);
   
   // Debug parsed sections
-  console.log('🔍 Using sections from:', Object.keys(apiSections).length > 0 ? 'API' : 'Parsed');
-  console.log('🔍 Parsed sections:');
-  console.log('  - Main Topic:', sections.mainTopic ? '✅' : '❌', sections.mainTopic?.substring(0, 50));
-  console.log('  - Sanskrit Name:', sections.sanskritName ? '✅' : '❌', sections.sanskritName?.substring(0, 50));
-  console.log('  - Historical:', sections.historicalContext ? '✅' : '❌', sections.historicalContext?.length);
-  console.log('  - Vedic Expl:', sections.vedicExplanation ? '✅' : '❌', sections.vedicExplanation?.length);
-  console.log('  - Modern Name:', sections.modernName ? '✅' : '❌', sections.modernName?.substring(0, 50));
-  console.log('  - Connection:', sections.howTheyRelate ? '✅' : '❌', sections.howTheyRelate?.length);
+  console.log('[DEBUG] Using sections from:', Object.keys(apiSections).length > 0 ? 'API' : 'Parsed');
+  console.log('[DEBUG] Parsed sections:');
+  console.log('  - Main Topic:', sections.mainTopic ? '[SUCCESS]' : '[ERROR]', sections.mainTopic?.substring(0, 50));
+  console.log('  - Sanskrit Name:', sections.sanskritName ? '[SUCCESS]' : '[ERROR]', sections.sanskritName?.substring(0, 50));
+  console.log('  - Historical:', sections.historicalContext ? '[SUCCESS]' : '[ERROR]', sections.historicalContext?.length);
+  console.log('  - Vedic Expl:', sections.vedicExplanation ? '[SUCCESS]' : '[ERROR]', sections.vedicExplanation?.length);
+  console.log('  - Modern Name:', sections.modernName ? '[SUCCESS]' : '[ERROR]', sections.modernName?.substring(0, 50));
+  console.log('  - Connection:', sections.howTheyRelate ? '[SUCCESS]' : '[ERROR]', sections.howTheyRelate?.length);
 
   const copyToClipboard = () => {
     Clipboard.setString(safeResult);
     setCopied(true);
     Alert.alert('Copied!', 'Answer copied to clipboard');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleFollowUpQuestion = async () => {
+    if (!followUpQuestion.trim()) {
+      Alert.alert('Empty Question', 'Please enter a follow-up question');
+      return;
+    }
+
+    setIsAskingFollowUp(true);
+    try {
+      const result = await getResonance(followUpQuestion, 'en');
+      
+      if (result) {
+        // Navigate to new Output screen with the follow-up result
+        navigation.push('Output', {
+          result: result.answer || result,
+          prompt: followUpQuestion,
+          questionType: result.questionType || 'misc',
+          sections: result.sections || {},
+          processingTime: result.processingTime || 0
+        });
+        setFollowUpQuestion(''); // Clear input
+      }
+    } catch (error) {
+      console.error('Follow-up question error:', error);
+      Alert.alert('Error', 'Failed to get answer. Please try again.');
+    } finally {
+      setIsAskingFollowUp(false);
+    }
   };
 
   // Utility to normalize newlines and collapse multiple newlines
@@ -524,6 +559,58 @@ const Output = ({ route, navigation }) => {
                 </View>
                 <Text style={[styles.finalAnswerText, {color: colors.text}]}>
                   {formatForDisplay(parsedSections.finalAnswer)}
+                </Text>
+              </View>
+            )}
+            
+            {/* History Type - Show explanation with proper formatting */}
+            {questionType === 'history' && parsedSections.explanation && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Text style={{fontSize: 24}}>📜</Text>
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Historical Context</Text>
+                </View>
+                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+                  {formatForDisplay(parsedSections.explanation)}
+                </Text>
+              </View>
+            )}
+            
+            {/* General Explanation Card (for misc/concept types) */}
+            {parsedSections.explanation && questionType !== 'history' && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="description" size={24} color="#06B6D4" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Explanation</Text>
+                </View>
+                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+                  {formatForDisplay(parsedSections.explanation)}
+                </Text>
+              </View>
+            )}
+            
+            {/* Example Card */}
+            {parsedSections.example && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="code" size={24} color="#10B981" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Example</Text>
+                </View>
+                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+                  {formatForDisplay(parsedSections.example)}
+                </Text>
+              </View>
+            )}
+            
+            {/* Application Card */}
+            {parsedSections.application && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
+                <View style={styles.cleanCardHeader}>
+                  <Icon name="lightbulb-outline" size={24} color="#EC4899" />
+                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Applications</Text>
+                </View>
+                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
+                  {formatForDisplay(parsedSections.application)}
                 </Text>
               </View>
             )}
@@ -931,6 +1018,42 @@ const Output = ({ route, navigation }) => {
           </View>
         )}
 
+        {/* Follow-Up Question Section */}
+        <View style={styles.followUpSection}>
+          <View style={styles.followUpHeader}>
+            <Icon name="question-answer" size={20} color="#FF9500" />
+            <Text style={[styles.followUpTitle, { color: colors.text }]}>Ask a Follow-Up Question</Text>
+          </View>
+          
+          <View style={[styles.followUpInputContainer, { backgroundColor: colors.surface }]}>
+            <TextInput
+              style={[styles.followUpInput, { color: colors.text }]}
+              placeholder="Type your follow-up question..."
+              placeholderTextColor={colors.textSecondary}
+              value={followUpQuestion}
+              onChangeText={setFollowUpQuestion}
+              multiline
+              maxLength={500}
+              editable={!isAskingFollowUp}
+            />
+            <TouchableOpacity
+              style={[
+                styles.followUpSendButton,
+                (!followUpQuestion.trim() || isAskingFollowUp) && styles.followUpSendButtonDisabled
+              ]}
+              onPress={handleFollowUpQuestion}
+              disabled={!followUpQuestion.trim() || isAskingFollowUp}
+              activeOpacity={0.7}
+            >
+              {isAskingFollowUp ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Icon name="send" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Action Button */}
         <View style={styles.actionButtons}>
           <TouchableOpacity
@@ -940,7 +1063,7 @@ const Output = ({ route, navigation }) => {
           >
             <LinearGradient colors={['#FF9500', '#D35400']} style={styles.actionButtonGradient}>
               <Icon name="add-circle-outline" size={20} color="#fff" />
-              <Text style={styles.actionButtonText}>Ask Another Question</Text>
+              <Text style={styles.actionButtonText}>New Topic</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
@@ -1035,9 +1158,12 @@ const styles = StyleSheet.create({
   },
   mainTopic: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '800',
     textAlign: 'center',
     marginBottom: 12,
+    letterSpacing: 0.3,
+    lineHeight: 36,
+    fontFamily: 'System',
   },
   divider: {
     flexDirection: 'row',
@@ -1076,11 +1202,12 @@ const styles = StyleSheet.create({
     gap: 8,
     elevation: 2,
   },
-  perspectiveTitle: {
-    fontSize: 17,
+  perspectiveBadgeText: {
+    fontSize: 15,
     fontWeight: '700',
     color: '#fff',
     letterSpacing: 0.5,
+    fontFamily: 'System',
   },
   perspectiveSubtitle: {
     fontSize: 13,
@@ -1115,16 +1242,19 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   blockLabel: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '800',
     textTransform: 'uppercase',
-    letterSpacing: 1,
-    opacity: 0.7,
+    letterSpacing: 1.2,
+    opacity: 0.85,
+    fontFamily: 'System',
   },
   premiumText: {
     fontSize: 15,
-    lineHeight: 24,
+    lineHeight: 26,
     fontWeight: '400',
+    letterSpacing: 0.2,
+    fontFamily: 'System',
   },
 
   // Special Containers
@@ -1135,10 +1265,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   sanskritText: {
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
     textAlign: 'center',
-    color: '#D35400',
+    color: '#000000',
+    letterSpacing: 0.5,
+    lineHeight: 32,
+    fontFamily: 'System',
   },
   modernNameContainer: {
     padding: 20,
@@ -1147,10 +1280,13 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   modernNameText: {
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 24,
+    fontWeight: '700',
     textAlign: 'center',
-    color: '#1D4ED8',
+    color: '#000000',
+    letterSpacing: 0.5,
+    lineHeight: 32,
+    fontFamily: 'System',
   },
 
   // Premium Formula & Example Boxes
@@ -1417,9 +1553,56 @@ const styles = StyleSheet.create({
   },
 
   // Action Buttons
+  followUpSection: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: '#FFF8E7',
+    elevation: 2,
+  },
+  followUpHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  followUpTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  followUpInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    borderRadius: 12,
+    padding: 12,
+    elevation: 1,
+  },
+  followUpInput: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 22,
+    maxHeight: 100,
+    minHeight: 44,
+    paddingVertical: 8,
+  },
+  followUpSendButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FF9500',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+  },
+  followUpSendButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+    opacity: 0.5,
+  },
   actionButtons: {
     paddingHorizontal: 16,
-    marginTop: 8,
     marginBottom: 16,
   },
   actionButton: {
