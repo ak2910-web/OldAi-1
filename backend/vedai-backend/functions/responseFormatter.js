@@ -194,17 +194,28 @@ const extractSections = (text) => {
   let currentContent = [];
   
   for (const line of lines) {
-    // Check if line is a bold heading (section marker)
-    const headingMatch = line.match(/^\*\*([^*]+)\*\*:?\s*$/);
+    // Check for multiple heading formats:
+    // 1. **Heading**: or **Heading**
+    // 2. ## Heading or ### Heading
+    // 3. Heading: (for simple colon-based headings)
+    const boldHeadingMatch = line.match(/^\*\*([^*]+)\*\*:?\s*$/);
+    const markdownHeadingMatch = line.match(/^#{1,6}\s+(.+)$/);
     
-    if (headingMatch) {
+    let headingText = null;
+    if (boldHeadingMatch) {
+      headingText = boldHeadingMatch[1];
+    } else if (markdownHeadingMatch) {
+      headingText = markdownHeadingMatch[1];
+    }
+    
+    if (headingText) {
       // Save previous section
       if (currentContent.length > 0) {
         sections[currentSection] = currentContent.join('\n').trim();
       }
       
       // Start new section
-      const sectionName = headingMatch[1]
+      const sectionName = headingText
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_|_$/g, '');

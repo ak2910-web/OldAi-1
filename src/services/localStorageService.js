@@ -40,18 +40,28 @@ export const saveConversationLocal = async (question, answer, model = 'gemini-2.
 };
 
 /**
- * Get all local conversations
+ * Get all local conversations with optional pagination
+ * @param {number} limit - Maximum number to fetch
+ * @param {number} offset - Offset for pagination
+ * @returns {Promise<Object>} - Object with conversations array and hasMore flag
  */
-export const getLocalConversations = async (limit = 50) => {
+export const getLocalConversations = async (limit = 10, offset = 0) => {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.GUEST_CONVERSATIONS);
-    if (!data) return [];
+    if (!data) return { conversations: [], hasMore: false };
 
-    const conversations = JSON.parse(data);
-    return conversations.slice(0, limit);
+    const allConversations = JSON.parse(data);
+    const conversations = allConversations.slice(offset, offset + limit);
+    const hasMore = allConversations.length > offset + limit;
+
+    return {
+      conversations,
+      hasMore,
+      totalCount: allConversations.length,
+    };
   } catch (error) {
     console.error('❌ Error fetching local conversations:', error);
-    return [];
+    return { conversations: [], hasMore: false };
   }
 };
 
@@ -79,7 +89,8 @@ export const deleteLocalConversation = async (conversationId) => {
  */
 export const searchLocalConversations = async (keyword) => {
   try {
-    const conversations = await getLocalConversations(100);
+    const result = await getLocalConversations(100, 0);
+    const conversations = result.conversations || result;
     const searchTerm = keyword.toLowerCase();
 
     return conversations.filter(conv =>
@@ -158,7 +169,8 @@ export const clearLocalData = async () => {
  */
 export const migrateGuestDataToUser = async (saveToFirestore) => {
   try {
-    const conversations = await getLocalConversations(100);
+    const result = await getLocalConversations(100, 0);
+    const conversations = result.conversations || result;
     
     if (conversations.length === 0) {
       console.log('No guest data to migrate');

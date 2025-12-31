@@ -20,54 +20,87 @@ import {
   getLocalConversations,
   deleteLocalConversation,
 } from '../services/localStorageService';
+import ResonanceSkeleton from '../components/ResonanceSkeleton';
 
 const History = ({ navigation }) => {
   const { colors, isDarkMode } = useTheme();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [lastDoc, setLastDoc] = useState(null); // For Firestore pagination
+  const [offset, setOffset] = useState(0); // For local storage pagination
   const [isGuest, setIsGuest] = useState(true);
+
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
     const currentUser = auth().currentUser;
     setIsGuest(!currentUser);
   }, []);
 
-  const loadConversations = async (showRefreshing = false) => {
+  const loadConversations = async (showRefreshing = false, loadMore = false) => {
     try {
       if (showRefreshing) {
         setRefreshing(true);
+      } else if (loadMore) {
+        setLoadingMore(true);
       } else {
         setLoading(true);
       }
 
       const currentUser = auth().currentUser;
       let data = [];
+      let hasMoreData = false;
+      let newLastDoc = null;
+      let newOffset = offset;
 
       if (currentUser) {
         // Load from Firestore for authenticated users
         try {
-          data = await getUserConversations(50);
-          if (data.length > 0 && data[0].fromCache) {
+          const result = await getUserConversations(PAGE_SIZE, loadMore ? lastDoc : null);
+          data = result.conversations;
+          hasMoreData = result.hasMore;
+          newLastDoc = result.lastDoc;
+          
+          if (result.conversations.length > 0 && result.conversations[0].fromCache) {
             console.log('[OFFLINE] Loaded conversations from offline cache');
           }
         } catch (error) {
           console.error('Failed to load from Firestore, falling back to local:', error);
           // Fallback to local storage if Firestore fails
-          data = await getLocalConversations(50);
+          const result = await getLocalConversations(PAGE_SIZE, loadMore ? offset : 0);
+          data = result.conversations;
+          hasMoreData = result.hasMore;
+          newOffset = loadMore ? offset + PAGE_SIZE : PAGE_SIZE;
         }
       } else {
         // Load from local storage for guest users
-        data = await getLocalConversations(50);
+        const result = await getLocalConversations(PAGE_SIZE, loadMore ? offset : 0);
+        data = result.conversations;
+        hasMoreData = result.hasMore;
+        newOffset = loadMore ? offset + PAGE_SIZE : PAGE_SIZE;
       }
 
-      setConversations(data);
+      if (loadMore) {
+        setConversations(prev => [...prev, ...data]);
+        setLastDoc(newLastDoc);
+        setOffset(newOffset);
+      } else {
+        setConversations(data);
+        setLastDoc(newLastDoc);
+        setOffset(currentUser ? 0 : PAGE_SIZE);
+      }
+      
+      setHasMore(hasMoreData);
     } catch (error) {
       console.error('Failed to load conversations:', error);
       Alert.alert('Error', 'Failed to load conversation history');
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setLoadingMore(false);
     }
   };
 
@@ -167,12 +200,20 @@ const History = ({ navigation }) => {
   if (loading) {
     return (
       <LinearGradient colors={colors.gradientBackground} style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>
-            Loading history...
+        {/* Header */}
+        <View style={[styles.header, { backgroundColor: colors.card }]}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Icon name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            {isGuest ? 'Saved Chats' : 'History'}
           </Text>
+          <View style={{ width: 36 }} />
         </View>
+
+        <ScrollView style={styles.scrollView}>
+          <ResonanceSkeleton variant="history" count={5} />
+        </ScrollView>
       </LinearGradient>
     );
   }
@@ -298,6 +339,29 @@ const History = ({ navigation }) => {
                 </TouchableOpacity>
               </TouchableOpacity>
             ))}
+
+            {/* Load More Button */}
+            {hasMore && !loadingMore && (
+              <TouchableOpacity
+                style={[styles.loadMoreButton, { backgroundColor: colors.primary + '20' }]}
+                onPress={() => loadConversations(false, true)}
+              >
+                <Icon name="expand-more" size={24} color={colors.primary} />
+                <Text style={[styles.loadMoreText, { color: colors.primary }]}>
+                  Load More
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Loading More Indicator */}
+            {loadingMore && (
+              <View style={styles.loadingMoreContainer}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[styles.loadingMoreText, { color: colors.textSecondary }]}>
+                  Loading more...
+                </Text>
+              </View>
+            )}
           </>
         )}
       </ScrollView>
@@ -447,6 +511,30 @@ const styles = StyleSheet.create({
   deleteButton: {
     padding: 8,
     justifyContent: 'center',
+  },
+  loadMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  loadMoreText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  loadingMoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    gap: 12,
+  },
+  loadingMoreText: {
+    fontSize: 14,
   },
 });
 

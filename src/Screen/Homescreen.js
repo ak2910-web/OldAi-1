@@ -60,12 +60,14 @@ const Homescreen = ({navigation}) => {
   const loadConversations = async () => {
     try {
       console.log('[FETCH] Loading conversations...');
-      const convos = await getUserConversations(10); // Fetch last 10
+      const result = await getUserConversations(10); // Fetch last 10
+      const convos = result.conversations || result || [];
       console.log(`[SUCCESS] Loaded ${convos.length} conversations`);
       setConversations(convos);
     } catch (error) {
       console.error('[ERROR] Error loading conversations:', error);
       console.error('Make sure Firestore emulator is running on port 8080');
+      setConversations([]);
     }
   };
 
@@ -277,7 +279,7 @@ const Homescreen = ({navigation}) => {
                   <Text style={styles.emptyHistoryText}>No chat history yet</Text>
                 </View>
               ) : (
-                conversations.map((convo, index) => (
+                Array.isArray(conversations) && conversations.map((convo, index) => (
                   <TouchableOpacity
                     key={convo.id || index}
                     style={styles.historyItem}

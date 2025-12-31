@@ -16,10 +16,52 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import LinearGradient from 'react-native-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
+import ConceptGraph from '../components/ConceptGraph';
 import { formatResponse, getResonance } from '../api/api';
 import { parseAIResponse, stripMarkdown, formatForDisplay } from '../utils/textParser';
 
 const { width } = Dimensions.get('window');
+
+// Helper function to check if value is a non-empty string
+const isNonEmptyString = (value) => {
+  return typeof value === 'string' && value.trim().length > 0;
+};
+
+// Unified Card Component for consistent rendering
+const ContentCard = ({ icon, iconColor, title, children, backgroundColor, style }) => (
+  <View style={[{
+    backgroundColor: backgroundColor,
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+  }, style]}>
+    <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 12,
+    }}>
+      {typeof icon === 'string' && icon.match(/[\u{1F300}-\u{1F9FF}]/u) ? (
+        <Text style={{fontSize: 24}}>{icon}</Text>
+      ) : (
+        <Icon name={icon || 'info'} size={24} color={iconColor || '#FF9500'} />
+      )}
+      <Text style={{
+        fontSize: 18,
+        fontWeight: '700',
+        color: iconColor || '#FF9500',
+      }}>
+        {title}
+      </Text>
+    </View>
+    {children}
+  </View>
+);
 
 // Helper component to render text with subscripts and superscripts
 // Notation: _{text} or _x for subscript, ^{text} or ^x for superscript
@@ -96,7 +138,9 @@ const Output = ({ route, navigation }) => {
     prompt = '', 
     questionType = 'misc',
     sections: apiSections = {},
-    processingTime = 0 
+    processingTime = 0,
+    vedicMapping = null,
+    vedicSutra = null
   } = route.params || {};
   
   // Defensive: always treat result as string
@@ -106,29 +150,56 @@ const Output = ({ route, navigation }) => {
   const mapApiSections = (sections) => {
     if (!sections || Object.keys(sections).length === 0) return null;
     
+    // Helper to get first non-empty value
+    const getFirst = (...values) => values.find(v => typeof v === 'string' && v.trim()) || '';
+    
     return {
-      concept: sections.concept || sections.definition || '',
-      sutra: sections.vedic_sutra || sections.sutra || '',
-      sanskritName: sections.sanskrit_meaning || sections.sanskritName || '',
-      vedicMethod: sections.steps_vedic_method || sections.revised_steps_vedic_method_illustrating_the_principle || '',
-      modernMethod: sections.modern_method || sections.modernMethod || '',
-      comparison: sections.comparison || '',
-      finalAnswer: sections.final_answer || sections.finalAnswer || '',
-      formula: sections.formula || '',
-      steps: sections.steps || sections.step_by_step || sections.derivationSteps || '',
-      explanation: sections.explanation || sections.intro || sections.definition || '',
-      example: sections.example || '',
-      application: sections.application || sections.applications || '',
+      concept: getFirst(sections.concept, sections.definition, sections.intro, sections.mathematical_field),
+      sutra: getFirst(sections.vedic_sutra, sections.sutra, sections.ancient_vedic_perspective, sections.vedic_principle),
+      sanskritName: getFirst(sections.sanskrit_meaning, sections.sanskritName, sections.sanskrit_name),
+      vedicMethod: getFirst(sections.vedic_principle, sections.steps_vedic_method, sections.vedic_method, sections.vedic_explanation, sections.revised_steps_vedic_method_illustrating_the_principle, sections.example_using_vedic_method),
+      modernMethod: getFirst(sections.modern_scientific_equivalent, sections.modern_method, sections.modernMethod, sections.modern_mathematical_perspective, sections.modern_explanation, sections.example_using_modern_method),
+      comparison: getFirst(sections.step_by_step_equivalence_proof, sections.formula_algorithm_equivalence, sections.comparison, sections.the_connection, sections.visual_comparison),
+      finalAnswer: getFirst(sections.final_answer, sections.finalAnswer, sections.answer, sections.conclusion),
+      formula: getFirst(sections.formula_algorithm_equivalence, sections.formula, sections.original_formula, sections.original_formula_method, sections.modern_formula, sections.modern_formula_method),
+      steps: getFirst(sections.steps, sections.step_by_step, sections.derivationSteps, sections.vedic_steps),
+      explanation: getFirst(sections.explanation, sections.intro, sections.definition, sections.vedic_explanation, sections.modern_explanation, sections.historical_context, sections.western_discovery),
+      example: getFirst(sections.example, sections.example_using_vedic_method, sections.example_using_modern_method, sections.practical_example),
+      application: getFirst(sections.real_world_applications, sections.application, sections.applications),
+      historicalContext: getFirst(sections.historical_context, sections.historicalContext),
+      westernDiscovery: getFirst(sections.western_discovery, sections.westernDiscovery),
+      howTheyRelate: getFirst(sections.how_they_relate, sections.howTheyRelate),
+      whyAncientWins: getFirst(sections.why_ancient_method_often_wins, sections.whyAncientWins),
+      culturalContext: getFirst(sections.cultural_context, sections.culturalContext),
     };
   };
   
   // Use sections from API if available, otherwise parse the result
-  const parsedSections = (apiSections && Object.keys(apiSections).length > 0) 
+  let parsedSections = (apiSections && Object.keys(apiSections).length > 0) 
     ? mapApiSections(apiSections)
     : parseAIResponse(safeResult);
   
+  // If we have API sections but some are missing, try parsing from raw answer
+  if (parsedSections && safeResult) {
+    const rawParsed = parseAIResponse(safeResult);
+    if (rawParsed) {
+      // Fill in missing sections from raw parse
+      Object.keys(rawParsed).forEach(key => {
+        if (rawParsed[key] && (!parsedSections[key] || !isNonEmptyString(parsedSections[key]))) {
+          parsedSections[key] = rawParsed[key];
+        }
+      });
+    }
+  }
+  
   console.log('[DEBUG] API Sections received:', apiSections ? Object.keys(apiSections).filter(k => apiSections[k]) : 'none');
+  console.log('[DEBUG] Full API Sections:', JSON.stringify(apiSections));
+  console.log('[DEBUG] Raw answer preview:', safeResult?.substring(0, 300));
   console.log('[DEBUG] Mapped sections:', parsedSections ? Object.keys(parsedSections).filter(k => parsedSections[k]) : 'none');
+  console.log('[DEBUG] Modern method exists:', !!parsedSections?.modernMethod);
+  console.log('[DEBUG] Concept exists:', !!parsedSections?.concept);
+  console.log('[DEBUG] Comparison exists:', !!parsedSections?.comparison);
+  console.log('[DEBUG] Final answer exists:', !!parsedSections?.finalAnswer);
 
   // MathView removed: fallback to plain text only
   const { colors, isDarkMode } = useTheme();
@@ -138,6 +209,7 @@ const Output = ({ route, navigation }) => {
 
   // For short/expandable results
   const [showFull, setShowFull] = useState(false);
+  const [showFullApplication, setShowFullApplication] = useState(false);
 
   // Debug logging
   console.log('[OUTPUT] Output screen loaded');
@@ -152,16 +224,16 @@ const Output = ({ route, navigation }) => {
   
   // Question type labels and icons
   const questionTypeLabels = {
-    vedic: { label: 'Vedic Math', color: '#FF9500' },
-    arithmetic: { label: 'Arithmetic', color: '#3B82F6' },
-    algebra: { label: 'Algebra',  color: '#10B981' },
-    geometry: { label: 'Geometry', color: '#8B5CF6' },
-    trigonometry: { label: 'Trigonometry', color: '#EC4899' },
-    formula: { label: 'Formula', color: '#F59E0B' },
-    concept: { label: 'Concept',  color: '#06B6D4' },
-    word_problem: { label: 'Word Problem',  color: '#14B8A6' },
-    history: { label: 'History', color: '#A855F7' },
-    misc: { label: 'General', color: '#6B7280' }
+    vedic: { label: 'Vedic Math', color: '#FF9500', icon: '🕉️' },
+    arithmetic: { label: 'Arithmetic', color: '#3B82F6', icon: '🔢' },
+    algebra: { label: 'Algebra',  color: '#10B981', icon: '📐' },
+    geometry: { label: 'Geometry', color: '#8B5CF6', icon: '📊' },
+    trigonometry: { label: 'Trigonometry', color: '#EC4899', icon: '📈' },
+    formula: { label: 'Formula', color: '#F59E0B', icon: '∑' },
+    concept: { label: 'Concept',  color: '#06B6D4', icon: '💡' },
+    word_problem: { label: 'Word Problem',  color: '#14B8A6', icon: '📝' },
+    history: { label: 'History', color: '#A855F7', icon: '📚' },
+    misc: { label: 'General', color: '#6B7280', icon: '❓' }
   };
   
   const typeInfo = questionTypeLabels[questionType] || questionTypeLabels.misc;
@@ -421,46 +493,27 @@ const Output = ({ route, navigation }) => {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         
-        {/* Debug Info Card - Remove after testing */}
-        <View style={{margin: 16, padding: 16, backgroundColor: '#FEF3C7', borderRadius: 8}}>
-          <Text style={{fontSize: 12, color: '#92400E', fontWeight: 'bold'}}>🐛 Debug Info:</Text>
-          <Text style={{fontSize: 11, color: '#92400E', marginTop: 4}}>
-            Result: {safeResult ? 'YES ✓' : 'NO ✗'} ({safeResult?.length || 0} chars)
-          </Text>
-          <Text style={{fontSize: 11, color: '#92400E'}}>
-            Sections: {apiSections ? Object.keys(apiSections).length : 0} keys
-          </Text>
-          <Text style={{fontSize: 11, color: '#92400E'}}>
-            Parsed: {parsedSections ? Object.keys(parsedSections).filter(k => parsedSections[k]).length : 0} valid sections
-          </Text>
-          <Text style={{fontSize: 11, color: '#92400E'}}>
-            Type: {questionType}
-          </Text>
-        </View>
 
-        {/* Fallback: Show raw result if no sections */}
-        {(!parsedSections || Object.keys(parsedSections).filter(k => parsedSections[k]).length === 0) && safeResult && (
+        
+        {/* Show structured content or fallback to raw text */}
+        {(!parsedSections || Object.keys(parsedSections).filter(k => isNonEmptyString(parsedSections[k])).length === 0) && safeResult && (
           <View style={{margin: 16, padding: 16, backgroundColor: colors.surface, borderRadius: 12}}>
-            <Text style={[styles.cleanCardTitle, {color: colors.text, marginBottom: 12}]}>
-              📝 Response
-            </Text>
             <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
               {formatForDisplay(safeResult)}
             </Text>
           </View>
         )}
         
+
+        
         {/* NEW: Clean structured cards using parsed sections */}
         {parsedSections && (
           <View style={{marginHorizontal: 16, marginTop: 16}}>
             
-            {/* Concept Card */}
-            {parsedSections.concept && (
-              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Icon name="lightbulb-outline" size={24} color="#FF9500" />
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Concept</Text>
-                </View>
+            {/* Concept */}
+            {isNonEmptyString(parsedSections?.concept) && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 12}]}>
+                <Text style={[styles.sectionLabel, {color: '#FF9500'}]}>💡 Concept</Text>
                 <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
                   {formatForDisplay(parsedSections.concept)}
                 </Text>
@@ -468,10 +521,10 @@ const Output = ({ route, navigation }) => {
             )}
             
             {/* Vedic Sutra Card */}
-            {parsedSections.sutra && (
+            {isNonEmptyString(parsedSections?.sutra) && (
               <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
                 <View style={styles.cleanCardHeader}>
-                  <Icon name="auto-awesome" size={24} color="#FF9500" />
+                  <Icon name="auto-awesome" size={24} color="#0b0b0aff" />
                   <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Vedic Sutra</Text>
                 </View>
                 <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
@@ -480,26 +533,20 @@ const Output = ({ route, navigation }) => {
               </View>
             )}
             
-            {/* Sanskrit Name Card */}
-            {parsedSections.sanskritName && (
-              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Text style={{fontSize: 24}}>🕉️</Text>
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Meaning</Text>
-                </View>
+            {/* Sanskrit Meaning */}
+            {isNonEmptyString(parsedSections?.sanskritName) && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 12}]}>
+                <Text style={[styles.sectionLabel, {color: '#FF9500'}]}>📜 Meaning</Text>
                 <Text style={[styles.sanskritDisplayText, {color: '#FF9500'}]}>
                   {formatForDisplay(parsedSections.sanskritName)}
                 </Text>
               </View>
             )}
             
-            {/* Vedic Method Steps Card */}
-            {parsedSections.vedicMethod && (
-              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Icon name="format-list-numbered" size={24} color="#FF9500" />
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Vedic Method</Text>
-                </View>
+            {/* Vedic Method */}
+            {isNonEmptyString(parsedSections?.vedicMethod) && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 12}]}>
+                <Text style={[styles.sectionLabel, {color: '#FF9500'}]}>✨ Vedic Method</Text>
                 <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
                   {formatForDisplay(parsedSections.vedicMethod)}
                 </Text>
@@ -524,94 +571,57 @@ const Output = ({ route, navigation }) => {
               </View>
             )}
             
-            {/* Modern Method Card */}
-            {parsedSections.modernMethod && (
-              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Icon name="calculate" size={24} color="#8B5CF6" />
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Modern Method</Text>
-                </View>
+            {/* Modern Method */}
+            {isNonEmptyString(parsedSections?.modernMethod) && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 12}]}>
+                <Text style={[styles.sectionLabel, {color: '#3B82F6'}]}>🔬 Modern Method</Text>
                 <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
                   {formatForDisplay(parsedSections.modernMethod)}
                 </Text>
               </View>
             )}
             
-            {/* Comparison Card */}
-            {parsedSections.comparison && (
-              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Icon name="compare-arrows" size={24} color="#EC4899" />
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Comparison</Text>
-                </View>
+            {/* Comparison */}
+            {isNonEmptyString(parsedSections?.comparison) && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 12}]}>
+                <Text style={[styles.sectionLabel, {color: '#EC4899'}]}>⚖️ Comparison</Text>
                 <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
                   {formatForDisplay(parsedSections.comparison)}
                 </Text>
               </View>
             )}
             
-            {/* Final Answer Card */}
-            {parsedSections.finalAnswer && (
-              <View style={[styles.cleanCard, {backgroundColor: isDarkMode ? '#1F2937' : '#FFF9E6', marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Icon name="check-circle" size={24} color="#10B981" />
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Final Answer</Text>
-                </View>
+            {/* Final Answer */}
+            {isNonEmptyString(parsedSections?.finalAnswer) && (
+              <View style={[styles.cleanCard, {backgroundColor: isDarkMode ? '#1F2937' : '#FFF9E6', marginBottom: 12}]}>
+                <Text style={[styles.sectionLabel, {color: '#10B981'}]}>✅ Answer</Text>
                 <Text style={[styles.finalAnswerText, {color: colors.text}]}>
                   {formatForDisplay(parsedSections.finalAnswer)}
                 </Text>
               </View>
             )}
             
-            {/* History Type - Show explanation with proper formatting */}
-            {questionType === 'history' && parsedSections.explanation && (
-              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Text style={{fontSize: 24}}>📜</Text>
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Historical Context</Text>
-                </View>
-                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
-                  {formatForDisplay(parsedSections.explanation)}
-                </Text>
-              </View>
-            )}
             
-            {/* General Explanation Card (for misc/concept types) */}
-            {parsedSections.explanation && questionType !== 'history' && (
-              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Icon name="description" size={24} color="#06B6D4" />
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Explanation</Text>
-                </View>
+            {/* Applications */}
+            {isNonEmptyString(parsedSections?.application) && (
+              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 12}]}>
+                <Text style={[styles.sectionLabel, {color: '#10B981'}]}>💼 Applications</Text>
                 <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
-                  {formatForDisplay(parsedSections.explanation)}
+                  {showFullApplication 
+                    ? formatForDisplay(parsedSections.application)
+                    : formatForDisplay(parsedSections.application.substring(0, 150)) + (parsedSections.application.length > 150 ? '...' : '')
+                  }
                 </Text>
-              </View>
-            )}
-            
-            {/* Example Card */}
-            {parsedSections.example && (
-              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Icon name="code" size={24} color="#10B981" />
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Example</Text>
-                </View>
-                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
-                  {formatForDisplay(parsedSections.example)}
-                </Text>
-              </View>
-            )}
-            
-            {/* Application Card */}
-            {parsedSections.application && (
-              <View style={[styles.cleanCard, {backgroundColor: colors.surface, marginBottom: 16}]}>
-                <View style={styles.cleanCardHeader}>
-                  <Icon name="lightbulb-outline" size={24} color="#EC4899" />
-                  <Text style={[styles.cleanCardTitle, {color: colors.text}]}>Applications</Text>
-                </View>
-                <Text style={[styles.cleanCardText, {color: colors.textSecondary}]}>
-                  {formatForDisplay(parsedSections.application)}
-                </Text>
+                {parsedSections.application.length > 150 && (
+                  <TouchableOpacity 
+                    onPress={() => setShowFullApplication(!showFullApplication)}
+                    style={{marginTop: 6}}
+                  >
+                    <Text style={{color: '#10B981', fontSize: 13}}>
+                      {showFullApplication ? 'Less' : 'More'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
@@ -1675,9 +1685,71 @@ const styles = StyleSheet.create({
     paddingLeft: 16,
   },
   finalAnswerText: {
-    fontSize: 16,
-    lineHeight: 26,
+    fontSize: 17,
+    lineHeight: 28,
     fontWeight: '600',
+  },
+  sectionLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  
+  // NEW: Mapping card styles
+  mappingCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9500',
+  },
+  mappingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  mappingHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  mappingIcon: {
+    fontSize: 24,
+  },
+  mappingTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  mappingSubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  mappingPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  mappingBadge: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  mappingBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  mappingField: {
+    fontSize: 12,
+    fontStyle: 'italic',
   },
 });
 

@@ -24,8 +24,10 @@ export function formatResponse(text = "") {
     .replace(/!=/g, '≠')
     .trim();
 }
+
+// Base URL for Firebase Cloud Functions
+// Using localhost with ADB reverse (adb reverse tcp:5005 tcp:5005)
 export const BASE_URL = "http://localhost:5005/demo-no-project/us-central1";
-// Using localhost with ADB reverse instead of IP address
 
 const MAX_RETRIES = 1;
 const TIMEOUT = 90000; // 90 seconds - generous timeout for Gemini API

@@ -27,10 +27,13 @@ const enableOfflinePersistence = async () => {
 // Enable persistence immediately
 enableOfflinePersistence();
 
-// Enable Firestore emulator for development
+// Enable Firebase emulators for development
+// Using ADB reverse: adb reverse tcp:8080 tcp:8080 && adb reverse tcp:9099 tcp:9099
 if (__DEV__) {
-  firestore().useEmulator('10.0.2.2', 8080);
-  console.log('[CONFIG] Firestore emulator enabled at 10.0.2.2:8080');
+  firestore().useEmulator('localhost', 8080);
+  auth().useEmulator('http://localhost:9099');
+  console.log('[CONFIG] Firestore emulator enabled at localhost:8080 (via ADB reverse)');
+  console.log('[CONFIG] Auth emulator enabled at localhost:9099 (via ADB reverse)');
 }
 
 // Collection names
@@ -80,21 +83,28 @@ export const saveConversation = async (question, answer, model = 'gemini-2.0-fla
 };
 
 /**
- * Get all conversations for the current user
+ * Get all conversations for the current user with optional pagination
  * @param {number} limit - Maximum number of conversations to fetch
- * @returns {Promise<Array>} - Array of conversations
+ * @param {Object} lastDoc - Last document from previous query for pagination
+ * @returns {Promise<Object>} - Object with conversations array and lastDoc for next page
  */
-export const getUserConversations = async (limit = 50) => {
+export const getUserConversations = async (limit = 10, lastDoc = null) => {
   try {
     const userId = auth().currentUser?.uid || 'anonymous';
-    console.log(`[FETCH] Fetching conversations for user: ${userId}`);
+    console.log(`[FETCH] Fetching conversations for user: ${userId}, limit: ${limit}, hasLastDoc: ${!!lastDoc}`);
 
-    const snapshot = await firestore()
+    let query = firestore()
       .collection(COLLECTIONS.CONVERSATIONS)
       .where('userId', '==', userId)
       .orderBy('timestamp', 'desc')
-      .limit(limit)
-      .get({ source: 'default' }); // Use cache when offline
+      .limit(limit);
+
+    // Add pagination if lastDoc is provided
+    if (lastDoc) {
+      query = query.startAfter(lastDoc);
+    }
+
+    const snapshot = await query.get({ source: 'default' }); // Use cache when offline
 
     const conversations = [];
     snapshot.forEach(doc => {
@@ -107,8 +117,15 @@ export const getUserConversations = async (limit = 50) => {
       });
     });
 
+    // Get the last document for pagination
+    const lastVisible = snapshot.docs[snapshot.docs.length - 1];
+
     console.log(`[SUCCESS] Fetched ${conversations.length} conversations (${snapshot.metadata.fromCache ? 'from cache' : 'from server'})`);
-    return conversations;
+    return {
+      conversations,
+      lastDoc: lastVisible,
+      hasMore: conversations.length === limit, // If we got full limit, there might be more
+    };
   } catch (error) {
     console.error('❌ Error fetching conversations:', error);
     console.error('Error details:', {

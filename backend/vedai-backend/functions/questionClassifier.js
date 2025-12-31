@@ -1,6 +1,7 @@
 /**
  * CLASSIFICATION LAYER
  * Detects question type and returns appropriate category
+ * Enhanced with Vedic Sutra identification for patent-worthy mapping
  */
 
 const QUESTION_CATEGORIES = {
@@ -14,6 +15,102 @@ const QUESTION_CATEGORIES = {
   WORD_PROBLEM: 'word_problem',
   HISTORY_CULTURE: 'history',
   MISCELLANEOUS: 'misc'
+};
+
+/**
+ * Vedic Sutra Keywords Mapping
+ * Maps specific keywords to their corresponding Vedic sutras
+ */
+const SUTRA_KEYWORDS = {
+  "Nikhilam Navatashcaramam Dashatah": [
+    "nikhilam", "all from 9", "last from 10", "complement", 
+    "subtract from base", "base method", "deficit"
+  ],
+  "Urdhva Tiryagbhyam": [
+    "urdhva", "tiryak", "vertically", "crosswise", "cross multiply",
+    "vertical and crosswise", "criss cross"
+  ],
+  "Ekadhikena Purvena": [
+    "ekadhikena", "one more", "by one more than", "previous one",
+    "squaring", "square of 5"
+  ],
+  "Paravartya Yojayet": [
+    "paravartya", "transpose", "reverse", "inverse", "flip"
+  ],
+  "Sunyam Samyasamuccaye": [
+    "sunyam", "samya", "equal to zero", "same sum", "when sum is same"
+  ],
+  "Anurupyena": [
+    "anurupyena", "proportional", "proportion", "ratio", "proportionately"
+  ],
+  "Yavadunam Tavadunam": [
+    "yavadunam", "deficiency", "deficit", "shortfall", "lessen by deficiency"
+  ],
+  "Vyashtisamanstih": [
+    "vyashti", "part and whole", "partition", "decompose", "break into parts"
+  ],
+  "Shesanyankena Charamena": [
+    "shesanyankena", "remainder", "last digit", "modulo", "remainders by last digit"
+  ],
+  "Sankalana-vyavakalanabhyam": [
+    "sankalana", "vyavakalana", "addition and subtraction", "add and subtract", "balance"
+  ],
+  "Gunita Samuccayah": [
+    "gunita", "product of sum", "multiply sums", "distributive"
+  ],
+  "Gunakasamuccayah": [
+    "gunaka", "factors", "factorization", "gcd", "lcm"
+  ]
+};
+
+/**
+ * Identify Vedic Sutra from question text
+ * @param {string} question - User's question
+ * @returns {string|null} - Sutra name or null if none identified
+ */
+const identifyVedicSutra = (question) => {
+  if (!question) return null;
+
+  const q = question.toLowerCase();
+
+  // Check each sutra's keywords
+  for (const [sutraName, keywords] of Object.entries(SUTRA_KEYWORDS)) {
+    const matchCount = keywords.filter(kw => q.includes(kw)).length;
+    if (matchCount > 0) {
+      return sutraName;
+    }
+  }
+
+  // Special pattern matching for common Vedic operations
+  if (q.match(/multiply.*\d+.*\d+/) && q.includes('fast')) {
+    return "Urdhva Tiryagbhyam";
+  }
+
+  if (q.match(/square of \d*5/) || (q.includes('square') && q.includes('ending in 5'))) {
+    return "Ekadhikena Purvena";
+  }
+
+  if (q.match(/\d+\s*-\s*\d+/) && (q.includes('base') || q.includes('complement'))) {
+    return "Nikhilam Navatashcaramam Dashatah";
+  }
+
+  return null;
+};
+
+/**
+ * Enhanced classification with Vedic sutra identification
+ * @param {string} question - User's question
+ * @returns {object} - Category and identified sutra (if any)
+ */
+const classifyQuestionEnhanced = (question) => {
+  const category = classifyQuestion(question);
+  const sutra = identifyVedicSutra(question);
+
+  return {
+    category,
+    vedicSutra: sutra,
+    isVedic: category === QUESTION_CATEGORIES.VEDIC_COMPUTATIONAL || sutra !== null
+  };
 };
 
 /**
@@ -108,7 +205,10 @@ const parseClassificationResponse = (response) => {
 
 module.exports = {
   QUESTION_CATEGORIES,
-  classifyQuestion, // NEW: Rule-based classifier
+  SUTRA_KEYWORDS,
+  classifyQuestion, // Rule-based classifier
+  classifyQuestionEnhanced, // NEW: Enhanced with sutra identification
+  identifyVedicSutra, // NEW: Sutra identifier
   getClassificationPrompt, // DEPRECATED
   parseClassificationResponse // DEPRECATED
 };

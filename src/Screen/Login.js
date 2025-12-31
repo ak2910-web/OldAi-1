@@ -268,7 +268,7 @@ const Login = ({ navigation }) => {
         end={{ x: 1, y: 1 }}
       >
         <View style={styles.logoContainer}>
-          <Text style={styles.logoText}>VedAI</Text>
+          <Text style={styles.logoText}>Athrvanavira</Text>
           <Text style={styles.tagline}>Ancient Wisdom Through AI</Text>
         </View>
       </LinearGradient>

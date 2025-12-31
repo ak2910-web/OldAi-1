@@ -11,6 +11,10 @@ export const stripMarkdown = (text) => {
   
   let cleaned = text;
   
+  // Remove math expressions in $...$ or $$...$$
+  cleaned = cleaned.replace(/\$\$[^$]+\$\$/g, '');
+  cleaned = cleaned.replace(/\$[^$]+\$/g, '');
+  
   // Remove bold (**text** or __text__)
   cleaned = cleaned.replace(/\*\*(.+?)\*\*/g, '$1');
   cleaned = cleaned.replace(/__(.+?)__/g, '$1');
@@ -18,6 +22,9 @@ export const stripMarkdown = (text) => {
   // Remove italic (*text* or _text_)
   cleaned = cleaned.replace(/\*(.+?)\*/g, '$1');
   cleaned = cleaned.replace(/_(.+?)_/g, '$1');
+  
+  // Remove remaining single asterisks
+  cleaned = cleaned.replace(/\*/g, '');
   
   // Remove strikethrough (~~text~~)
   cleaned = cleaned.replace(/~~(.+?)~~/g, '$1');
@@ -246,6 +253,11 @@ export const formatForDisplay = (text) => {
   // Clean up markdown bold/italic remnants
   formatted = formatted.replace(/\*\*\*/g, '');          // Remove ***
   formatted = formatted.replace(/\*\*/g, '');            // Remove **
+  formatted = formatted.replace(/\*/g, '');              // Remove remaining *
+  
+  // Remove dollar signs from math expressions
+  formatted = formatted.replace(/\$\$/g, '');            // Remove $$
+  formatted = formatted.replace(/\$/g, '');              // Remove $
   
   // Convert common math symbols to proper Unicode
   formatted = formatted.replace(/\^2/g, '²');            // ^2 → ²

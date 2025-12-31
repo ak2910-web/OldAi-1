@@ -10,11 +10,17 @@ const { QUESTION_CATEGORIES } = require('./questionClassifier');
  * @param {string} category - Question category
  * @param {string} question - Original question
  * @param {string} language - Response language
+ * @param {object} vedicMapping - Optional Vedic-Modern mapping data
  * @returns {string} - Templated prompt
  */
-const getTemplatePrompt = (category, question, language) => {
+const getTemplatePrompt = (category, question, language, vedicMapping = null) => {
   const languageInstruction = getLanguageInstruction(language);
   const sectionHeaders = getSectionHeaders(language);
+  
+  // If Vedic mapping is provided, use cross-domain template
+  if (vedicMapping) {
+    return getCrossDomainInferenceTemplate(question, vedicMapping, sectionHeaders, languageInstruction);
+  }
   
   switch (category) {
     case QUESTION_CATEGORIES.VEDIC_COMPUTATIONAL:
@@ -48,6 +54,66 @@ const getTemplatePrompt = (category, question, language) => {
     default:
       return getFreeFormTemplate(question, sectionHeaders, languageInstruction);
   }
+};
+
+/**
+ * NEW: CROSS-DOMAIN INFERENCE TEMPLATE
+ * Patent-worthy innovation: Maps Vedic concepts to modern frameworks
+ */
+const getCrossDomainInferenceTemplate = (question, vedicMapping, headers, langInstruction) => {
+  const mapping = vedicMapping;
+  
+  return `You are VedAI, an advanced system that bridges ancient Vedic mathematical wisdom with modern scientific frameworks.
+
+Question: ${question}
+
+I have identified this relates to the Vedic concept: "${mapping.short_name || mapping.conceptKey}"
+
+Your task is to provide a comprehensive cross-domain analysis that demonstrates the connection between ancient Vedic mathematics and modern science.
+
+Structure your response EXACTLY as follows:
+
+**${headers.vedicPrinciple || 'Vedic Principle'}:**
+${mapping.sanskrit_meaning || '[Explain the original Vedic concept]'}
+
+**${headers.sanskritName || 'Sanskrit Name'}:**
+${mapping.english_translation || '[Provide Sanskrit name and translation]'}
+
+**${headers.modernEquivalent || 'Modern Scientific Equivalent'}:**
+${mapping.modern_equivalent || '[Explain the equivalent modern concept/method]'}
+
+**${headers.mathematicalField || 'Mathematical Field'}:**
+${mapping.mathematical_field || '[Identify which branch of modern mathematics]'}
+
+**${headers.formulaEquivalence || 'Formula/Algorithm Equivalence'}:**
+Modern: ${mapping.modern_formula || '[State modern formula]'}
+Vedic: [Express the Vedic method in mathematical notation]
+
+**${headers.stepByStepProof || 'Step-by-Step Equivalence Proof'}:**
+${mapping.step_by_step_equivalence ? mapping.step_by_step_equivalence.map((step, i) => `${i + 1}. ${step}`).join('\n') : '• [Demonstrate step-by-step why these are mathematically equivalent]'}
+
+**${headers.practicalApplications || 'Real-World Applications'}:**
+${mapping.practical_applications ? mapping.practical_applications.map((app, i) => `${i + 1}. ${app}`).join('\n') : '• [List modern applications where this principle is used]'}
+
+**${headers.crossDomainConnections || 'Cross-Domain Connections'}:**
+${mapping.cross_domain_connections ? Object.entries(mapping.cross_domain_connections).map(([field, conn]) => `• **${field.toUpperCase()}**: ${conn}`).join('\n') : '• [Identify connections to physics, computer science, engineering, etc.]'}
+
+**${headers.confidenceScore || 'Mapping Confidence'}:**
+${mapping.confidence_score ? `${(mapping.confidence_score * 100).toFixed(0)}%` : '[0-100%]'} - [Explain why this confidence level]
+
+**${headers.historicalContext || 'Historical Context'}:**
+Ancient Source: ${mapping.sources?.ancient || '[Cite Vedic text reference]'}
+Modern Source: ${mapping.sources?.modern || '[Cite modern mathematical reference]'}
+
+**${headers.whyItMatters || 'Why This Connection Matters'}:**
+[Explain the significance of this Vedic-Modern bridge and how it advances our understanding]
+
+**${headers.workedExample || 'Worked Example'}:**
+[Solve the original question using BOTH Vedic and modern methods to demonstrate equivalence]
+
+${langInstruction}
+
+CRITICAL: Your response must be factually accurate, cite real sources, and clearly demonstrate the mathematical equivalence between the Vedic and modern approaches. Do not overstate connections - be precise and scientific.`;
 };
 
 /**
@@ -472,6 +538,7 @@ const getSectionHeaders = (language) => {
 
 module.exports = {
   getTemplatePrompt,
+  getCrossDomainInferenceTemplate,
   getSectionHeaders,
   getLanguageInstruction
 };

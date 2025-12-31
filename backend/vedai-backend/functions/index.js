@@ -8,14 +8,20 @@ const fetch = require('node-fetch');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Import our Hybrid Dynamic Output Engine (Solution 3)
-const { classifyQuestion } = require('./questionClassifier'); // NEW: Rule-based
+const { classifyQuestion, classifyQuestionEnhanced, identifyVedicSutra } = require('./questionClassifier'); // NEW: Rule-based
 const { getTemplatePrompt } = require('./templateEngine');
 const { formatResponse, extractSections, getPreview } = require('./responseFormatter');
+const { mapVedicToModern, identifyVedicConcept } = require('./vedicMappingEngine'); // NEW: Vedic mapping engine
+const { validateQuestion, validateLanguage, validateImage, checkUserRateLimit, getUserUsageStats } = require('./validators'); // NEW: Security
+
+// Import Mathematical Intelligence Engine
+const mathEngine = require('./mathEngine');
 
 // Simple in-memory rate limiter (per IP, per endpoint)
-const RATE_LIMIT = 10; // requests
+const RATE_LIMIT = 100; // requests (increased for development)
 const RATE_WINDOW = 60 * 1000; // 1 minute
 const rateLimitMap = {};
+const EMULATOR_MODE = process.env.FUNCTIONS_EMULATOR === 'true';
 
 // Safe timestamp normalization for mixed data formats
 function normalizeTimestamp(ts) {
@@ -38,7 +44,7 @@ function normalizeTimestamp(ts) {
 
 // Global API call throttle (prevent overwhelming Gemini)
 let lastApiCallTime = 0;
-const MIN_API_CALL_INTERVAL = 200; // 200ms between API calls (max 5 calls/sec)
+const MIN_API_CALL_INTERVAL = 1500; // 1500ms between API calls to avoid 429 errors
 
 async function throttleApiCall() {
   const now = Date.now();
@@ -64,6 +70,12 @@ function getClientIp(req) {
 }
 
 function checkRateLimit(endpoint, req, res) {
+  // Disable rate limiting in emulator mode
+  if (EMULATOR_MODE) {
+    console.log('[RATE-LIMIT] Disabled in emulator mode');
+    return true;
+  }
+  
   const ip = getClientIp(req);
   const key = `${endpoint}:${ip}`;
   const now = Date.now();
@@ -80,12 +92,15 @@ function checkRateLimit(endpoint, req, res) {
   return true;
 }
 
-admin.initializeApp();
+// Initialize Firebase Admin SDK
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 // Initialize Firestore for caching and stats
 const db = admin.firestore();
 
-// Get Firestore types for timestamps
+// Get Firestore types for timestamps (must be after initializeApp)
 const FieldValue = admin.firestore.FieldValue;
 const Timestamp = admin.firestore.Timestamp;
 
@@ -352,12 +367,12 @@ const callGeminiWithRetry = async (prompt, maxRetries = 3) => {
         }
       );
       
-      // Handle 429 (rate limit) - retry with backoff
+      // Handle 429 (rate limit) - retry with exponential backoff
       if (response.status === 429) {
         console.warn(`[RATE-LIMIT] 429 hit on ${modelName}, trying next model...`);
         recordFailure(modelName);
         lastError = new Error(`Rate limit on ${modelName}`);
-        const backoffTime = Math.pow(2, attempt) * 500;
+        const backoffTime = Math.pow(2, attempt) * 2000; // Increased from 500ms to 2000ms
         console.log(`[WAIT] Waiting ${backoffTime}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, backoffTime));
         continue;
@@ -462,8 +477,8 @@ const callGeminiVisionWithRetry = async (prompt, imageData, maxRetries = 3) => {
         recordFailure(modelName);
         lastError = new Error(`Rate limit on ${modelName}`);
         
-        // Exponential backoff: 0.5s → 1s → 2s
-        const backoffTime = Math.pow(2, attempt) * 500;
+        // Exponential backoff: 2s → 4s → 8s (increased from 0.5s → 1s → 2s)
+        const backoffTime = Math.pow(2, attempt) * 2000;
         console.log(`[WAIT] Waiting ${backoffTime}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, backoffTime));
         continue;
@@ -644,18 +659,42 @@ exports.answerQuestion = functions.https.onRequest(async (req, res) => {
 
     const question = req.body?.question;
     const language = req.body?.language || 'English';
+    const userId = req.body?.userId || req.headers['x-user-id']; // Get from auth context
     
-    if (!question) {
-      return res.status(400).json({ error: "No question provided in request body" });
+    // STEP 1: VALIDATE INPUT
+    const questionValidation = validateQuestion(question);
+    if (!questionValidation.valid) {
+      console.log(`[VALIDATION] Question rejected: ${questionValidation.error}`);
+      return res.status(400).json({ 
+        error: questionValidation.error,
+        errorCode: 'INVALID_INPUT'
+      });
     }
 
-    console.log(`[PROCESSING] Processing question: ${question}`);
-    console.log(`[LANGUAGE] Language: ${language}`);
+    const languageValidation = validateLanguage(language);
+    const sanitizedQuestion = questionValidation.sanitized;
+    const sanitizedLanguage = languageValidation.sanitized;
+
+    // STEP 2: CHECK RATE LIMIT
+    const rateLimit = await checkUserRateLimit(userId, db);
+    if (!rateLimit.allowed) {
+      console.log(`[RATE LIMIT] User ${userId} exceeded daily limit`);
+      return res.status(429).json({ 
+        error: rateLimit.error,
+        errorCode: 'RATE_LIMIT_EXCEEDED',
+        remaining: rateLimit.remaining,
+        resetTime: rateLimit.resetTime
+      });
+    }
+
+    console.log(`[PROCESSING] Processing question: ${sanitizedQuestion}`);
+    console.log(`[LANGUAGE] Language: ${sanitizedLanguage}`);
+    console.log(`[RATE LIMIT] Queries remaining today: ${rateLimit.remaining}`);
 
     const startTime = Date.now();
 
     // Check cache first
-    const cachedResponse = await getCachedResponse(question, language);
+    const cachedResponse = await getCachedResponse(sanitizedQuestion, sanitizedLanguage);
     if (cachedResponse) {
       console.log(`[CACHED] Returning cached response (saved ${Date.now() - startTime}ms)`);
       
@@ -757,7 +796,7 @@ exports.answerQuestion = functions.https.onRequest(async (req, res) => {
     }
 
     // Enhanced prompt for ancient vs modern comparison with mixed format (descriptive + bullet points)
-    const enhancedPrompt = `You are an expert in Vedic and Modern Mathematics. Provide a balanced mix of flowing descriptions and clear bullet points.
+    const ancientModernPrompt = `You are an expert in Vedic and Modern Mathematics. Provide a balanced mix of flowing descriptions and clear bullet points.
 
 Structure your response EXACTLY as follows:
 
@@ -841,14 +880,69 @@ IMPORTANT: Mix descriptive paragraphs for concepts with clear bullet points for 
 
     console.log("[AI-LAYER1] LAYER 1: Classifying question type (rule-based, instant)...");
     
-    // LAYER 1: FAST RULE-BASED CLASSIFICATION (NO API CALL)
-    const questionType = classifyQuestion(question);
+    // LAYER 0: MATHEMATICAL INTELLIGENCE ENGINE (NEW - Before AI)
+    // Try to solve mathematically first for deterministic accuracy
+    let mathSolution = null;
+    try {
+      console.log("[MATH-ENGINE] Attempting mathematical solution...");
+      mathSolution = await mathEngine.solveMathProblem(sanitizedQuestion);
+      
+      if (mathSolution && mathSolution.solution && mathSolution.solution.success) {
+        console.log(`[MATH-ENGINE] ✓ Solved using ${mathSolution.method}`);
+        console.log(`[MATH-ENGINE] Result: ${mathSolution.solution.result || mathSolution.solution.solutions}`);
+      } else {
+        console.log("[MATH-ENGINE] No direct mathematical solution, proceeding to AI");
+      }
+    } catch (error) {
+      console.error("[MATH-ENGINE] Error:", error.message);
+      // Continue without math solution
+    }
+    
+    // LAYER 1: ENHANCED CLASSIFICATION WITH VEDIC SUTRA IDENTIFICATION
+    const classification = classifyQuestionEnhanced(sanitizedQuestion);
+    const questionType = classification.category;
+    const vedicSutra = classification.vedicSutra;
+    const isVedic = classification.isVedic;
     
     console.log(`[SUCCESS] Question classified as: ${questionType} (0ms, deterministic)`);
+    if (vedicSutra) {
+      console.log(`[VEDIC] Identified Vedic Sutra: ${vedicSutra}`);
+    }
+    
+    // LAYER 1.5: VEDIC MAPPING ENGINE (NEW - PATENT-WORTHY)
+    let vedicMapping = null;
+    if (isVedic) {
+      console.log(`[VEDIC MAPPING] Attempting to map Vedic concept to modern framework...`);
+      try {
+        // Try to identify and map the Vedic concept
+        vedicMapping = await mapVedicToModern(vedicSutra || sanitizedQuestion, genAI);
+        if (vedicMapping) {
+          console.log(`[VEDIC MAPPING] ✓ Successfully mapped to: ${vedicMapping.modern_equivalent}`);
+          console.log(`[VEDIC MAPPING] Confidence: ${(vedicMapping.confidence_score * 100).toFixed(0)}%`);
+        } else {
+          console.log(`[VEDIC MAPPING] No mapping found in knowledge base`);
+        }
+      } catch (error) {
+        console.error(`[VEDIC MAPPING] Mapping failed:`, error.message);
+        // Continue without mapping - don't fail the request
+      }
+    }
+    
     console.log(`[AI-LAYER2] LAYER 2: Selecting template for "${questionType}"...`);
     
-    // LAYER 2: TEMPLATE SELECTION
-    const templatePrompt = getTemplatePrompt(questionType, question, language);
+    // LAYER 2: TEMPLATE SELECTION (Enhanced with Vedic mapping + Math solution if available)
+    let enhancedPrompt = getTemplatePrompt(questionType, sanitizedQuestion, sanitizedLanguage, vedicMapping);
+    
+    // If we have a mathematical solution, add it to the prompt for verification and explanation
+    if (mathSolution && mathSolution.solution && mathSolution.solution.success) {
+      const mathExplanation = mathEngine.generateExplanation(mathSolution.solution, mathSolution.classification);
+      enhancedPrompt += `\n\n[VERIFIED MATHEMATICAL SOLUTION - Use this as the accurate answer and explain it clearly]:
+${mathExplanation}
+
+Your task: Explain this solution in a clear, educational way. Add context, examples, and teaching points. DO NOT recalculate - this solution is already verified.`;
+    }
+    
+    const templatePrompt = enhancedPrompt;
     
     console.log(`[AI-LAYER3] LAYER 3: Generating AI response (single call)...`);
     
@@ -869,41 +963,179 @@ IMPORTANT: Mix descriptive paragraphs for concepts with clear bullet points for 
     console.log(`[STATS] Question Type: ${questionType}`);
     console.log(`[STATS] Token Count: ${tokenCount}`);
     console.log(`[STATS] Sections Extracted: ${Object.keys(sections).length}`);
+    console.log(`[DEBUG] Section names found:`, Object.keys(sections).join(', '));
+    console.log(`[DEBUG] Raw response preview (first 500 chars):`, rawResponse.substring(0, 500));
     
-    // Prepare response object
+    // Prepare response object (Enhanced with Vedic mapping + Math solution data)
     const responseData = {
       answer: formattedAnswer,
       questionType,
       sections,
       tokenCount,
       cached: false,
-      processingTime: Date.now() - startTime
+      processingTime: Date.now() - startTime,
+      // NEW: Include mathematical solution if computed
+      mathematicalSolution: mathSolution ? {
+        method: mathSolution.method,
+        result: mathSolution.solution?.result || mathSolution.solution?.solutions,
+        domain: mathSolution.classification?.primaryDomain,
+        confidence: mathSolution.confidence,
+        verified: mathSolution.solution?.verified,
+        processingTime: mathSolution.processingTime
+      } : null,
+      // NEW: Include Vedic mapping data if available
+      vedicMapping: vedicMapping ? {
+        sutraName: vedicMapping.short_name,
+        modernEquivalent: vedicMapping.modern_equivalent,
+        mathematicalField: vedicMapping.mathematical_field,
+        confidenceScore: vedicMapping.confidence_score,
+        applications: vedicMapping.practical_applications,
+        crossDomainConnections: vedicMapping.cross_domain_connections
+      } : null,
+      vedicSutra: vedicSutra
     };
     
     // Save to cache for future requests (save stringified version)
-    saveToCache(question, language, JSON.stringify(responseData)).catch(err => 
+    saveToCache(sanitizedQuestion, sanitizedLanguage, JSON.stringify(responseData)).catch(err => 
       console.error('Failed to cache response:', err)
     );
     
     // Save to search history
-    saveToSearchHistory(question, language, preview).catch(err =>
+    saveToSearchHistory(sanitizedQuestion, sanitizedLanguage, preview).catch(err =>
       console.error('Failed to save search history:', err)
     );
     
-    // Log usage for dashboard with question type
-    await db.collection('apiUsage').add({
-      endpoint: 'answerQuestion',
-      question,
-      language,
-      questionType,
-      tokenCount,
-      processingTime: Date.now() - startTime,
-      timestamp: Date.now()
-    });
+    // Log usage for dashboard with question type (anonymized)
+    try {
+      await db.collection('apiUsage').add({
+        endpoint: 'answerQuestion',
+        questionLength: sanitizedQuestion.length, // Don't log full question for privacy
+        language: sanitizedLanguage,
+        questionType,
+        tokenCount,
+        processingTime: Date.now() - startTime,
+        userId: userId || 'anonymous',
+        timestamp: FieldValue.serverTimestamp()
+      });
+    } catch (logError) {
+      console.error('[WARN] Failed to log API usage:', logError.message);
+    }
     
     res.json(responseData);
   } catch (error) {
-    console.error("[ERROR] Error:", error);
+    console.error("[ERROR] Error in answerQuestion:", error);
+    
+    // Enhanced error handling with specific error types
+    let errorResponse = {
+      error: true,
+      message: "An unexpected error occurred",
+      errorCode: "UNKNOWN_ERROR",
+      retryable: false
+    };
+    
+    // Handle specific error types
+    if (error.message && error.message.includes('Rate limit')) {
+      errorResponse = {
+        error: true,
+        message: "AI service rate limit reached. Please try again in a moment.",
+        errorCode: "RATE_LIMIT_EXCEEDED",
+        retryable: true,
+        retryAfter: 60 // seconds
+      };
+    } else if (error.message && error.message.includes('overloaded')) {
+      errorResponse = {
+        error: true,
+        message: "AI service is currently busy. Please try again shortly.",
+        errorCode: "SERVICE_OVERLOADED",
+        retryable: true,
+        retryAfter: 30
+      };
+    } else if (error.message && error.message.includes('RESOURCE_EXHAUSTED')) {
+      errorResponse = {
+        error: true,
+        message: "Daily AI quota exceeded. Try again tomorrow or upgrade your plan.",
+        errorCode: "QUOTA_EXCEEDED",
+        retryable: false
+      };
+    } else if (error.message && error.message.includes('UNAUTHENTICATED')) {
+      errorResponse = {
+        error: true,
+        message: "Authentication failed. Please log in again.",
+        errorCode: "AUTH_FAILED",
+        retryable: false
+      };
+    } else if (error.message && error.message.includes('Network')) {
+      errorResponse = {
+        error: true,
+        message: "Network error. Please check your internet connection.",
+        errorCode: "NETWORK_ERROR",
+        retryable: true,
+        retryAfter: 10
+      };
+    } else {
+      errorResponse.message = error.message || "Something went wrong. Please try again.";
+    }
+    
+    // Log error to Firestore for monitoring
+    try {
+      await db.collection('errorLogs').add({
+        endpoint: 'answerQuestion',
+        error: error.message,
+        errorCode: errorResponse.errorCode,
+        question: req.body?.question?.substring(0, 100), // Don't log full question for privacy
+        timestamp: FieldValue.serverTimestamp(),
+        stack: error.stack
+      });
+    } catch (logError) {
+      console.error('[WARN] Failed to log error:', logError.message);
+    }
+    
+    res.status(errorResponse.errorCode === 'RATE_LIMIT_EXCEEDED' ? 429 : 500).json(errorResponse);
+  }
+});
+
+/**
+ * HTTP endpoint to get user usage statistics
+ * Returns daily query/image limits and remaining quota
+ */
+exports.getUserStats = functions.https.onRequest(async (req, res) => {
+  try {
+    // Enable CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'GET, POST');
+      res.set('Access-Control-Allow-Headers', 'Content-Type');
+      res.status(204).send('');
+      return;
+    }
+
+    const userId = req.body?.userId || req.query?.userId || req.headers['x-user-id'];
+    
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID required' });
+    }
+
+    const stats = await getUserUsageStats(userId, db);
+    
+    res.json({
+      success: true,
+      stats: {
+        queries: {
+          used: stats.queriesUsed,
+          remaining: stats.queriesRemaining,
+          limit: 100
+        },
+        images: {
+          used: stats.imagesUsed,
+          remaining: stats.imagesRemaining,
+          limit: 20
+        },
+        resetTime: new Date().setHours(24, 0, 0, 0) // Midnight tonight
+      }
+    });
+  } catch (error) {
+    console.error('[ERROR] getUserStats failed:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1208,7 +1440,7 @@ exports.saveConversation = functions.https.onRequest(async (req, res) => {
       model: model || 'gemini-2.0-flash',
       type: type || 'text',
       language: language || 'English',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(), // Server timestamp only
+      createdAt: new Date(), // Using regular Date object for emulator compatibility
     };
 
     // Save to Firestore

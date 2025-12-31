@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,8 @@ import {
   PermissionsAndroid,
 } from 'react-native';
 import { launchImageLibrary, launchCamera } from 'react-native-image-picker';
+import ImageResizer from '@bam.tech/react-native-image-resizer';
+import RNFS from 'react-native-fs';
 import { extractText, getResonance } from '../api/api';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import Icon from 'react-native-vector-icons/Feather';
@@ -23,11 +25,14 @@ import LinearGradient from 'react-native-linear-gradient';
 import FooterNavigation from '../components/FooterNavigation';
 import ProfileIcon from '../components/ProfileIcon';
 import auth from '@react-native-firebase/auth';
+import { trackQuestionAsked, trackImageUpload, trackScreenView } from '../services/analyticsService';
 
 const Imageinput = ({ navigation }) => {
   const { colors, isDarkMode } = useTheme();
   const [selectedImage, setSelectedImage] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // 0-100
+  const [progressMessage, setProgressMessage] = useState('');
   const [query, setQuery] = useState('');
   const [inputMode, setInputMode] = useState('image'); // 'image' or 'text'
   const [showImageOptions, setShowImageOptions] = useState(false);
@@ -45,6 +50,38 @@ const Imageinput = ({ navigation }) => {
     'Ask about sutras by name or description',
     'For images, ensure clear visibility of formulas',
   ];
+
+  // Track screen view
+  useEffect(() => {
+    trackScreenView('Input_Screen');
+  }, []);
+
+  // Compress image to reduce upload size and improve performance
+  const compressImage = async (imageUri) => {
+    try {
+      console.log('[INFO] Starting image compression...');
+      const compressedImage = await ImageResizer.createResizedImage(
+        imageUri,
+        1024, // max width
+        1024, // max height
+        'JPEG', // format
+        80, // quality (0-100)
+        0, // rotation
+      );
+      
+      console.log('[SUCCESS] Image compressed:', {
+        original: imageUri,
+        compressed: compressedImage.uri,
+        size: compressedImage.size
+      });
+      
+      return compressedImage;
+    } catch (error) {
+      console.error('[ERROR] Image compression failed:', error);
+      // Return null on error - caller will handle
+      return null;
+    }
+  };
 
   const handleSelectImage = async (type = 'library') => {
     try {
@@ -102,8 +139,54 @@ const Imageinput = ({ navigation }) => {
       }
 
       if (result.assets?.[0]) {
-        setSelectedImage(result.assets[0]);
-        console.log('[SUCCESS] Image selected:', result.assets[0].fileName);
+        console.log('[INFO] Image selected, starting compression...');
+        const originalImage = result.assets[0];
+        
+        // Compress the image before setting it
+        const compressedImage = await compressImage(originalImage.uri);
+        
+        if (compressedImage) {
+          try {
+            // Convert compressed image to base64
+            const base64 = await RNFS.readFile(compressedImage.uri, 'base64');
+            
+            setSelectedImage({
+              ...originalImage,
+              uri: compressedImage.uri,
+              base64: base64,
+              fileSize: compressedImage.size,
+              type: 'image/jpeg', // After compression, it's always JPEG
+            });
+            
+            console.log('[SUCCESS] Compressed image ready:', {
+              fileName: originalImage.fileName,
+              originalSize: originalImage.fileSize,
+              compressedSize: compressedImage.size,
+              reduction: originalImage.fileSize 
+                ? ((1 - compressedImage.size / originalImage.fileSize) * 100).toFixed(1) + '%'
+                : 'N/A'
+            });
+
+            // Track image upload analytics
+            trackImageUpload({
+              imageSize: compressedImage.size,
+              originalSize: originalImage.fileSize,
+              compressed: true,
+              compressionRatio: originalImage.fileSize 
+                ? (compressedImage.size / originalImage.fileSize) 
+                : 1,
+              source: type,
+            });
+          } catch (base64Error) {
+            console.error('[ERROR] Base64 conversion failed:', base64Error);
+            // Fallback to original image if base64 conversion fails
+            setSelectedImage(originalImage);
+          }
+        } else {
+          // Compression failed, use original image
+          console.log('[WARN] Using original image (compression failed)');
+          setSelectedImage(originalImage);
+        }
       }
     } catch (err) {
       console.error('[ERROR] Error selecting image:', err);
@@ -112,20 +195,55 @@ const Imageinput = ({ navigation }) => {
   };
 
   const handleProcessRequest = async () => {
+    const startTime = Date.now();
     try {
       setLoading(true);
+      setUploadProgress(0);
+      setProgressMessage('Preparing request...');
       let result;
       
       if (inputMode === 'image' && selectedImage?.base64) {
-        // Process image
-        const response = await extractText(selectedImage.base64, selectedImage.type || "image/png");
+        // Process image with progress updates
+        setUploadProgress(20);
+        setProgressMessage('Uploading image...');
+
+        // Track question analytics
+        trackQuestionAsked({
+          questionType: 'image',
+          hasImage: true,
+          imageSize: selectedImage.fileSize,
+        });
+        
+        const response = await extractText(selectedImage.base64, selectedImage.type || "image/jpeg");
+        
+        setUploadProgress(70);
+        setProgressMessage('Processing with AI...');
+        
         result = response.text;
+        
+        setUploadProgress(100);
+        setProgressMessage('Complete!');
       } else if (inputMode === 'text' && query) {
-        // Process text query
+        // Process text query with progress
+        setUploadProgress(30);
+        setProgressMessage('Sending query...');
+
+        // Track question analytics
+        trackQuestionAsked({
+          questionType: 'text',
+          questionLength: query.length,
+          hasImage: false,
+        });
+        
         result = await getResonance(query);
+        
+        setUploadProgress(100);
+        setProgressMessage('Complete!');
       } else {
         Alert.alert('Error', inputMode === 'image' ? 'Please select an image' : 'Please enter a question');
         setLoading(false);
+        setUploadProgress(0);
+        setProgressMessage('');
         return;
       }
       
@@ -137,6 +255,8 @@ const Imageinput = ({ navigation }) => {
       });
     } catch (error) {
       console.error("Error processing request:", error);
+      setUploadProgress(0);
+      setProgressMessage('');
       Alert.alert(
         "Error",
         error.message || "Failed to process request. Please try again.",
@@ -144,6 +264,11 @@ const Imageinput = ({ navigation }) => {
       );
     } finally {
       setLoading(false);
+      // Keep progress visible briefly before clearing
+      setTimeout(() => {
+        setUploadProgress(0);
+        setProgressMessage('');
+      }, 500);
     }
   };
 
@@ -421,8 +546,15 @@ const Imageinput = ({ navigation }) => {
           >
             {loading ? (
               <>
-                <ActivityIndicator color="#fff" />
-                <Text style={styles.generateText}>Processing...</Text>
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={styles.generateText}>{progressMessage || 'Processing...'}</Text>
+                </View>
+                {uploadProgress > 0 && (
+                  <View style={styles.progressBarContainer}>
+                    <View style={[styles.progressBar, { width: `${uploadProgress}%` }]} />
+                  </View>
+                )}
               </>
             ) : (
               <>
@@ -818,6 +950,23 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#fff',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  progressBarContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#fff',
   },
   // Tips
   tipsContainer: {
