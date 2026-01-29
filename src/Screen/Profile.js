@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
 import ProfileIcon from '../components/ProfileIcon';
+import StatusBarThemed from '../components/StatusBarThemed';
 import { getUserConversations } from '../services/firebaseService';
 import { getLocalConversations, getGuestStats } from '../services/localStorageService';
 
@@ -26,6 +27,7 @@ const Profile = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [stats, setStats] = useState({
     totalConversations: 0,
     textQuestions: 0,
@@ -35,21 +37,27 @@ const Profile = ({ navigation }) => {
   });
 
   useEffect(() => {
-    loadUserData();
-  }, []);
+    if (!dataLoaded) {
+      loadUserData();
+    }
+  }, [dataLoaded]);
 
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
+    if (dataLoaded) return; // Prevent duplicate loads
+    
+    setLoading(true);
     const currentUser = auth().currentUser;
     if (currentUser) {
       setUser({
         email: currentUser.email,
-        displayName: currentUser.displayName || 'VedAI User',
+        displayName: currentUser.displayName || 'Ataravanavira User',
         photoURL: currentUser.photoURL || null,
       });
-      // Load user stats from Firestore
+      // Load user stats from Firestore (limit to 50 for performance)
       try {
         console.log('[PROFILE] Loading user conversations...');
-        const conversations = await getUserConversations(1000);
+        const result = await getUserConversations(50);
+        const conversations = result.conversations || result || [];
         console.log('[PROFILE] Found conversations:', conversations.length);
         
         const textCount = conversations.filter(c => c.type === 'text').length;
@@ -107,33 +115,34 @@ const Profile = ({ navigation }) => {
     }
     // load persisted notifications
     try {
-      const notif = await AsyncStorage.getItem('@vedai:notifications');
+      const notif = await AsyncStorage.getItem('@Ataravanavira:notifications');
       if (notif !== null) setNotificationsEnabled(notif === 'true');
     } catch (e) {
       // ignore
     }
     setLoading(false);
-  };
+    setDataLoaded(true);
+  }, [dataLoaded]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await auth().signOut();
       navigation.replace('Login');
     } catch (error) {
       Alert.alert('Error', 'Failed to logout. Please try again.');
     }
-  };
+  }, [navigation]);
 
-  const handleEditProfile = () => {
+  const handleEditProfile = useCallback(() => {
     navigation.navigate('ProfileEdit');
-  };
+  }, [navigation]);
 
-  const toggleNotifications = async (value) => {
+  const toggleNotifications = useCallback(async (value) => {
     setNotificationsEnabled(value);
     try {
-      await AsyncStorage.setItem('@vedai:notifications', value ? 'true' : 'false');
+      await AsyncStorage.setItem('@Ataravanavira:notifications', value ? 'true' : 'false');
     } catch (e) {}
-  };
+  }, []);
 
   if (loading) {
     return (
@@ -234,6 +243,7 @@ const Profile = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBarThemed />
       {/* Use native navigator header — remove in-screen back button/title to avoid duplicates */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <View style={styles.headerContent}>
@@ -245,7 +255,7 @@ const Profile = ({ navigation }) => {
         <View style={styles.avatarContainer}>
           <ProfileIcon
             size={100}
-            name={user?.displayName || 'VedAI User'}
+            name={user?.displayName || 'Ataravanavira User'}
             imageUri={user?.photoURL}
             showBadge={true} />
           <TouchableOpacity

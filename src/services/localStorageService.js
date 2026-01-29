@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEYS = {
-  GUEST_CONVERSATIONS: '@vedai:guestConversations',
-  GUEST_STATS: '@vedai:guestStats',
+  GUEST_CONVERSATIONS: '@Ataravanavira:guestConversations',
+  GUEST_STATS: '@Ataravanavira:guestStats',
 };
 
 /**

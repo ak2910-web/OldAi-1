@@ -24,6 +24,7 @@ import { useTheme } from '../context/ThemeContext';
 import LinearGradient from 'react-native-linear-gradient';
 import FooterNavigation from '../components/FooterNavigation';
 import ProfileIcon from '../components/ProfileIcon';
+import StatusBarThemed from '../components/StatusBarThemed';
 import auth from '@react-native-firebase/auth';
 import { trackQuestionAsked, trackImageUpload, trackScreenView } from '../services/analyticsService';
 
@@ -274,6 +275,7 @@ const Imageinput = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBarThemed />
       {/* Header */}
       <View style={[styles.header, { backgroundColor: colors.surface }]}>
         <TouchableOpacity 
@@ -284,7 +286,7 @@ const Imageinput = ({ navigation }) => {
           <Icon name="arrow-left" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}> Athravanavira</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}> Ataravanavira</Text>
           <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
             {inputMode === 'image' ? 'Analyze Images' : 'Ask Questions'}
           </Text>

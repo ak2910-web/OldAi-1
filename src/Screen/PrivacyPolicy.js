@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../context/ThemeContext';
+import AppHeader from '../components/AppHeader';
 
 const PrivacyPolicy = ({ navigation }) => {
   const { colors, isDarkMode } = useTheme();
@@ -16,15 +17,10 @@ const PrivacyPolicy = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Privacy Policy</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader 
+        title="Privacy Policy" 
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
@@ -33,7 +29,7 @@ const PrivacyPolicy = ({ navigation }) => {
           </Text>
 
           <Text style={[styles.intro, { color: colors.text }]}>
-            VedAI ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application.
+            Ataravanavira ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile application.
           </Text>
 
           {/* Section 1 */}
@@ -116,7 +112,7 @@ const PrivacyPolicy = ({ navigation }) => {
               • Object to processing{'\n'}
               • Data portability{'\n'}
               • Withdraw consent at any time{'\n\n'}
-              To exercise these rights, contact us at: support@vedai.app
+              To exercise these rights, contact us at: support@Ataravanavira.app
             </Text>
           </View>
 
@@ -126,7 +122,7 @@ const PrivacyPolicy = ({ navigation }) => {
               6. Children's Privacy
             </Text>
             <Text style={[styles.text, { color: colors.textSecondary }]}>
-              VedAI is intended for users 13 years and older. We do not knowingly collect data from children under 13. If you believe a child has provided us with personal information, please contact us immediately.
+              Ataravanavira is intended for users 13 years and older. We do not knowingly collect data from children under 13. If you believe a child has provided us with personal information, please contact us immediately.
             </Text>
           </View>
 
@@ -157,8 +153,8 @@ const PrivacyPolicy = ({ navigation }) => {
             </Text>
             <Text style={[styles.text, { color: colors.textSecondary }]}>
               If you have questions about this Privacy Policy:{'\n\n'}
-              Email: support@vedai.app{'\n'}
-              Website: www.vedai.app{'\n'}
+              Email: support@Ataravanavira.app{'\n'}
+              Website: www.Ataravanavira.app{'\n'}
               Address: [Your Company Address]
             </Text>
           </View>
@@ -169,7 +165,7 @@ const PrivacyPolicy = ({ navigation }) => {
               10. Data Deletion Request
             </Text>
             <Text style={[styles.text, { color: colors.textSecondary }]}>
-              To delete your account and all associated data, go to Profile → Settings → Delete Account, or email us at support@vedai.app with your request.
+              To delete your account and all associated data, go to Profile → Settings → Delete Account, or email us at support@Ataravanavira.app with your request.
             </Text>
           </View>
 

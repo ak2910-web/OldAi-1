@@ -15,6 +15,7 @@ import auth from '@react-native-firebase/auth';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
 import ProfileIcon from '../components/ProfileIcon';
+import StatusBarThemed from '../components/StatusBarThemed';
 import { getUserConversations, deleteConversation } from '../services/firebaseService';
 import {
   getLocalConversations,

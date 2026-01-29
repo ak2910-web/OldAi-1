@@ -8,11 +8,13 @@ import {
   TouchableOpacity,
   Image,
   Animated,
+  Share,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
+import { discoveryDetails } from '../data/discoveryDetails';
 
 const DiscoveryDetail = ({ route, navigation }) => {
   const { item } = route.params;
@@ -20,10 +22,26 @@ const DiscoveryDetail = ({ route, navigation }) => {
   const [expandedSections, setExpandedSections] = useState({
     ancient: true,
     modern: true,
-    connection: false,
+    keyFigures: false,
     timeline: false,
+    practical: false,
     sources: false,
   });
+
+  const details = discoveryDetails[item.id] || {};
+
+  const handleShare = async () => {
+    try {
+      const message = `${item.title}\n\n📚 Ancient Insight:\n${item.ancientInsight}\n\n⚡ Modern Resonance:\n${item.modernResonance}\n\nDiscover more ancient wisdom with Ataravanavira!`;
+      
+      await Share.share({
+        message: message,
+        title: item.title,
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
+  };
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -32,7 +50,7 @@ const DiscoveryDetail = ({ route, navigation }) => {
     }));
   };
 
-  const CollapsibleSection = ({ title, icon, content, section }) => {
+  const CollapsibleSection = ({ title, icon, content, section, children }) => {
     const isExpanded = expandedSections[section];
 
     return (
@@ -55,9 +73,11 @@ const DiscoveryDetail = ({ route, navigation }) => {
 
         {isExpanded && (
           <View style={styles.sectionContent}>
-            <Text style={[styles.sectionText, { color: colors.textSecondary }]}>
-              {content}
-            </Text>
+            {children || (
+              <Text style={[styles.sectionText, { color: colors.textSecondary }]}>
+                {content}
+              </Text>
+            )}
           </View>
         )}
       </View>
@@ -80,7 +100,7 @@ const DiscoveryDetail = ({ route, navigation }) => {
         </Text>
         <TouchableOpacity
           style={styles.shareButton}
-          onPress={() => console.log('Share')}
+          onPress={handleShare}
           activeOpacity={0.7}
         >
           <Icon name="share-2" size={24} color={colors.text} />
@@ -116,46 +136,88 @@ const DiscoveryDetail = ({ route, navigation }) => {
             title="Ancient Insight"
             icon="book"
             section="ancient"
-            content={item.ancientInsight || 'Ancient Indian mathematicians introduced the concept of zero, a revolutionary idea that transformed mathematics and paved the way for modern computing. The concept of "Shunya" (zero) was not just a placeholder but represented the void, emptiness, and the infinite. This philosophical and mathematical concept was first recorded in the Brahmasphutasiddhanta by Brahmagupta in 628 CE, where he established rules for arithmetic operations involving zero.'}
+            content={item.ancientInsight}
           />
 
           <CollapsibleSection
             title="Modern Resonance"
             icon="trending-up"
             section="modern"
-            content={item.modernResonance || 'Zero is the foundation of binary code, computer science, and digital technology. Every computation in modern computers relies on the binary system (0 and 1), making zero an indispensable element of the digital age. Without zero, we would not have programming languages, databases, artificial intelligence, or the internet as we know it today.'}
+            content={item.modernResonance}
           />
 
-          <CollapsibleSection
-            title="The Connection"
-            icon="link"
-            section="connection"
-            content="The journey of zero from ancient India to the modern world demonstrates how mathematical concepts transcend time and culture. Arab mathematicians adopted zero from India, and it eventually reached Europe through their works. Today, zero is not just a number but a philosophical concept that bridges ancient wisdom with cutting-edge technology. Its dual nature as both 'nothing' and 'something' continues to inspire mathematicians and philosophers alike."
-          />
+          {details.keyFigures && (
+            <CollapsibleSection
+              title="Key Figures"
+              icon="users"
+              section="keyFigures"
+            >
+              {details.keyFigures.map((figure, index) => (
+                <View key={index} style={styles.figureItem}>
+                  <View style={[styles.figureDot, { backgroundColor: item.categoryColor }]} />
+                  <View style={styles.figureContent}>
+                    <Text style={[styles.figureName, { color: colors.text }]}>
+                      {figure.name}
+                    </Text>
+                    <Text style={[styles.figurePeriod, { color: colors.textSecondary }]}>
+                      {figure.period}
+                    </Text>
+                    <Text style={[styles.figureContribution, { color: colors.textSecondary }]}>
+                      {figure.contribution}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </CollapsibleSection>
+          )}
 
-          <CollapsibleSection
-            title="Historical Timeline"
-            icon="clock"
-            section="timeline"
-            content={`• 3rd-4th Century CE: Early Indian texts mention the concept of Shunya
-• 628 CE: Brahmagupta's Brahmasphutasiddhanta formalizes zero
-• 9th Century: Arab mathematicians adopt zero from Indian texts
-• 12th Century: Zero reaches Europe through Arabic translations
-• 17th Century: Zero becomes standard in European mathematics
-• 20th Century: Binary system (0 and 1) revolutionizes computing
-• 21st Century: Zero remains fundamental to all digital technologies`}
-          />
+          {details.timeline && (
+            <CollapsibleSection
+              title="Historical Timeline"
+              icon="clock"
+              section="timeline"
+            >
+              {details.timeline.map((event, index) => (
+                <View key={index} style={styles.timelineItem}>
+                  <View style={[styles.timelineDot, { backgroundColor: item.categoryColor }]} />
+                  <Text style={[styles.timelineText, { color: colors.textSecondary }]}>
+                    {event}
+                  </Text>
+                </View>
+              ))}
+            </CollapsibleSection>
+          )}
 
-          <CollapsibleSection
-            title="Sources & Further Reading"
-            icon="file-text"
-            section="sources"
-            content={`• "The Nothing That Is: A Natural History of Zero" by Robert Kaplan
-• "Zero: The Biography of a Dangerous Idea" by Charles Seife
-• Brahmasphutasiddhanta by Brahmagupta (628 CE)
-• Research papers on the history of mathematics in ancient India
-• Academic journals on the cultural and philosophical significance of zero`}
-          />
+          {details.practicalApplications && (
+            <CollapsibleSection
+              title="Practical Applications"
+              icon="zap"
+              section="practical"
+            >
+              {details.practicalApplications.map((app, index) => (
+                <View key={index} style={styles.applicationItem}>
+                  <Icon name="check-circle" size={16} color={item.categoryColor} />
+                  <Text style={[styles.applicationText, { color: colors.textSecondary }]}>
+                    {app}
+                  </Text>
+                </View>
+              ))}
+            </CollapsibleSection>
+          )}
+
+          {details.sources && (
+            <CollapsibleSection
+              title="Sources & Further Reading"
+              icon="file-text"
+              section="sources"
+            >
+              {details.sources.map((source, index) => (
+                <Text key={index} style={[styles.sourceItem, { color: colors.textSecondary }]}>
+                  • {source}
+                </Text>
+              ))}
+            </CollapsibleSection>
+          )}
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
@@ -284,6 +346,66 @@ const styles = StyleSheet.create({
   sectionText: {
     fontSize: 14,
     lineHeight: 22,
+  },
+  figureItem: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  figureDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 6,
+    marginRight: 12,
+  },
+  figureContent: {
+    flex: 1,
+  },
+  figureName: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  figurePeriod: {
+    fontSize: 12,
+    marginBottom: 4,
+    fontStyle: 'italic',
+  },
+  figureContribution: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  timelineItem: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  timelineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 8,
+    marginRight: 12,
+  },
+  timelineText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  applicationItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+    gap: 10,
+  },
+  applicationText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  sourceItem: {
+    fontSize: 13,
+    lineHeight: 22,
+    marginBottom: 8,
   },
   actionButtons: {
     marginTop: 32,

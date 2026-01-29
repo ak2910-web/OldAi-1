@@ -1,5 +1,5 @@
 /**
- * Analytics Service for VedAI
+ * Analytics Service for Ataravanavira
  * Tracks user interactions and app events using Firebase Analytics
  */
 

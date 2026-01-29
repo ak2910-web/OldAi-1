@@ -7,6 +7,8 @@ import {
   StatusBar,
   Animated,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import auth from '@react-native-firebase/auth';
 
 const { width, height } = Dimensions.get('window');
 
@@ -47,9 +49,33 @@ const Splash = ({ navigation }) => {
       }),
     ]).start();
 
-    // Auto-hide splash screen after 3 seconds
-    const timer = setTimeout(() => {
-      navigation.navigate('Home');
+    // Check onboarding and auth status after 3 seconds
+    const timer = setTimeout(async () => {
+      try {
+        // Check if user has completed onboarding
+        const hasOnboarded = await AsyncStorage.getItem('hasOnboarded');
+        
+        if (!hasOnboarded) {
+          // First time user - show onboarding
+          navigation.replace('Onboarding');
+          return;
+        }
+
+        // Check if user is logged in
+        const currentUser = auth().currentUser;
+        
+        if (currentUser) {
+          // User is logged in - go to Home
+          navigation.replace('Home');
+        } else {
+          // User not logged in - go to Login
+          navigation.replace('Login');
+        }
+      } catch (error) {
+        console.error('Error checking onboarding status:', error);
+        // Default to Home on error
+        navigation.replace('Home');
+      }
     }, 3000);
 
     return () => clearTimeout(timer);
@@ -94,7 +120,7 @@ const Splash = ({ navigation }) => {
         <LotusIcon />
         
         {/* Brand Name */}
-        <Text style={styles.brandName}>Athravanavira</Text>
+        <Text style={styles.brandName}>Ataravanavira</Text>
         
         {/* Tagline */}
         <Text style={styles.tagline}>

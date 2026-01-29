@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../context/ThemeContext';
+import AppHeader from '../components/AppHeader';
 
 const TermsOfService = ({ navigation }) => {
   const { colors, isDarkMode } = useTheme();
@@ -16,15 +17,10 @@ const TermsOfService = ({ navigation }) => {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDarkMode ? "light-content" : "dark-content"} />
-
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Icon name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Terms of Service</Text>
-        <View style={{ width: 40 }} />
-      </View>
+      <AppHeader 
+        title="Terms of Service" 
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <View style={styles.content}>
@@ -33,7 +29,7 @@ const TermsOfService = ({ navigation }) => {
           </Text>
 
           <Text style={[styles.intro, { color: colors.text }]}>
-            Welcome to VedAI. By accessing or using our application, you agree to be bound by these Terms of Service. Please read them carefully.
+            Welcome to Ataravanavira. By accessing or using our application, you agree to be bound by these Terms of Service. Please read them carefully.
           </Text>
 
           {/* Section 1 */}
@@ -42,7 +38,7 @@ const TermsOfService = ({ navigation }) => {
               1. Acceptance of Terms
             </Text>
             <Text style={[styles.text, { color: colors.textSecondary }]}>
-              By creating an account and using VedAI, you confirm that you:{'\n\n'}
+              By creating an account and using Ataravanavira, you confirm that you:{'\n\n'}
               • Are at least 13 years old{'\n'}
               • Have legal capacity to enter into binding contracts{'\n'}
               • Agree to comply with all applicable laws{'\n'}
@@ -56,7 +52,7 @@ const TermsOfService = ({ navigation }) => {
               2. Service Description
             </Text>
             <Text style={[styles.text, { color: colors.textSecondary }]}>
-              VedAI provides:{'\n\n'}
+              Ataravanavira provides:{'\n\n'}
               • AI-powered answers to mathematical and Vedic knowledge questions{'\n'}
               • Cross-domain mapping between ancient Vedic sutras and modern science{'\n'}
               • Image recognition for mathematical formulas{'\n'}
@@ -120,7 +116,7 @@ const TermsOfService = ({ navigation }) => {
               6. Intellectual Property Rights
             </Text>
             <Text style={[styles.text, { color: colors.textSecondary }]}>
-              • All content, logos, and trademarks are owned by VedAI{'\n'}
+              • All content, logos, and trademarks are owned by Ataravanavira{'\n'}
               • You retain ownership of content you submit{'\n'}
               • By submitting content, you grant us a license to use it to provide services{'\n'}
               • AI-generated responses are provided "as-is" for educational purposes{'\n'}
@@ -149,7 +145,7 @@ const TermsOfService = ({ navigation }) => {
               8. Third-Party Services
             </Text>
             <Text style={[styles.text, { color: colors.textSecondary }]}>
-              VedAI uses third-party services:{'\n\n'}
+              Ataravanavira uses third-party services:{'\n\n'}
               • Google Gemini AI (for AI processing){'\n'}
               • Firebase (authentication, database, analytics){'\n\n'}
               These services have their own terms and privacy policies. We are not responsible for their practices or downtime.
@@ -177,7 +173,7 @@ const TermsOfService = ({ navigation }) => {
             </Text>
             <Text style={[styles.text, { color: colors.textSecondary }]}>
               TO THE MAXIMUM EXTENT PERMITTED BY LAW:{'\n\n'}
-              • VedAI is provided "AS IS" without warranties{'\n'}
+              • Ataravanavira is provided "AS IS" without warranties{'\n'}
               • We are not liable for indirect, incidental, or consequential damages{'\n'}
               • Our total liability is limited to the amount you paid us (if any) in the past 12 months{'\n'}
               • We do not guarantee uninterrupted or error-free service
@@ -231,9 +227,9 @@ const TermsOfService = ({ navigation }) => {
             </Text>
             <Text style={[styles.text, { color: colors.textSecondary }]}>
               For questions about these Terms:{'\n\n'}
-              Email: legal@vedai.app{'\n'}
-              Support: support@vedai.app{'\n'}
-              Website: www.vedai.app
+              Email: legal@Ataravanavira.app{'\n'}
+              Support: support@Ataravanavira.app{'\n'}
+              Website: www.Ataravanavira.app
             </Text>
           </View>
 

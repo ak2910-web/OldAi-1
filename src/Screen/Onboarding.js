@@ -17,7 +17,7 @@ const { width, height } = Dimensions.get('window');
 const ONBOARDING_SLIDES = [
   {
     id: '1',
-    title: 'Welcome to VedAI',
+    title: 'Welcome to Ataravanavira',
     description: 'Bridge ancient Vedic wisdom with modern science through AI-powered knowledge mapping',
     emoji: '🕉️',
     gradient: ['#FF6B6B', '#FF8E53'],
@@ -122,7 +122,7 @@ const Onboarding = ({ navigation }) => {
 
   const completeOnboarding = async () => {
     try {
-      await AsyncStorage.setItem('hasCompletedOnboarding', 'true');
+      await AsyncStorage.setItem('hasOnboarded', 'true');
       // Navigate to main app (Login or Homescreen depending on auth state)
       navigation.replace('Login');
     } catch (error) {

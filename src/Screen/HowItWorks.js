@@ -14,6 +14,8 @@ import Icon from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
+import StatusBarThemed from '../components/StatusBarThemed';
+import AppHeader from '../components/AppHeader';
 
 const { width } = Dimensions.get('window');
 
@@ -128,18 +130,11 @@ const HowItWorks = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header with Back Button */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icon name="arrow-left" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>How It Works</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <StatusBarThemed />
+      <AppHeader 
+        title="How It Works" 
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
@@ -188,7 +183,7 @@ const HowItWorks = ({ navigation }) => {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Getting Started</Text>
           </View>
           <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
-            Athravanavira makes learning Vedic mathematics simple and interactive. Follow these 
+            Ataravanavira makes learning Vedic mathematics simple and interactive. Follow these 
             steps to unlock the power of ancient Indian mathematical techniques.
           </Text>
         </Animated.View>

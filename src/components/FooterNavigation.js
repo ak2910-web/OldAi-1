@@ -29,12 +29,7 @@ const FooterNavigation = () => {
       name: 'Saved',
       icon: 'bookmark',
       label: 'Saved',
-      onPress: () => {
-        // Navigate to saved conversations - you can create this screen later
-        console.log('Saved conversations');
-        // For now, show a message or navigate to Profile
-        navigation.navigate('Profile');
-      },
+      onPress: () => navigation.navigate('Saved'),
     },
     {
       name: 'Profile',

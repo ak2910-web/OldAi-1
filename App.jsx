@@ -6,6 +6,7 @@ import { ThemeProvider } from './src/context/ThemeContext'
 import { AuthProvider } from './src/context/AuthContext'
 
 import Splash from './src/Screen/Splash'
+import Onboarding from './src/Screen/Onboarding'
 import ArrowLeftIcon from './src/components/ArrowLeftIcon'
 import Homescreen from './src/Screen/Homescreen'
 import Textinput from './src/Screen/Textinput'
@@ -23,6 +24,7 @@ import Explore from './src/Screen/Explore'
 import DiscoveryDetail from './src/Screen/DiscoveryDetail'
 import History from './src/Screen/History'
 import LegalScreen from './src/Screen/LegalScreen'
+import Saved from './src/Screen/Saved'
 
 const Stack = createNativeStackNavigator();
 const App = () => {
@@ -41,6 +43,7 @@ const App = () => {
       }}
       initialRouteName="splash">
   <Stack.Screen name='splash' component={Splash} options={{ headerShown: false }} />
+  <Stack.Screen name='Onboarding' component={Onboarding} options={{ headerShown: false }} />
   <Stack.Screen name='Login' component={Login} options={{ headerShown: false }} />
   <Stack.Screen name='Signup' component={Signup} options={{ headerShown: false }} />
   <Stack.Screen name='Profile' component={Profile} options={{ headerShown: false }} />
@@ -56,6 +59,7 @@ const App = () => {
   <Stack.Screen name='Explore' component={Explore} options={{ headerShown: false }} />
   <Stack.Screen name='DiscoveryDetail' component={DiscoveryDetail} options={{ headerShown: false }} />
   <Stack.Screen name='History' component={History} options={{ headerShown: false }} />
+  <Stack.Screen name='Saved' component={Saved} options={{ headerShown: false }} />
   <Stack.Screen name='LegalScreen' component={LegalScreen} options={{ headerShown: false }} />
 
 

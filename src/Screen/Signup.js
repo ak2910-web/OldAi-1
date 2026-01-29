@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  StatusBar,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -16,8 +15,11 @@ import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import auth from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { useTheme } from '../context/ThemeContext';
+import StatusBarThemed from '../components/StatusBarThemed';
 
 const Signup = ({ navigation }) => {
+  const { colors, isDarkMode } = useTheme();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -121,7 +123,7 @@ const Signup = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF9500" />
+      <StatusBarThemed />
       <LinearGradient
         colors={['#FF9500', '#FFD700']}
         style={styles.header}

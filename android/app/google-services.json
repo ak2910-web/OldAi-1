@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "215577452779-j0tt3bm6cnlbreml56j7u5ppgvbrodl5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.oldai",
+            "certificate_hash": "37865d5b02381cb4cba834006337142985d95e2a"
+          }
+        },
+        {
           "client_id": "215577452779-jp0nopi2r77b2vlurssb56njn57dd2nc.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

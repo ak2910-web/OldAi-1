@@ -58,13 +58,13 @@ export const useTheme = () => {
 // Light Theme Colors
 const lightColors = {
   // Primary Colors
-  primary: '#FF9500',
-  primaryDark: '#D35400',
-  primaryLight: '#FFD700',
+  primary: '#D4AF37',
+  primaryDark: '#B8860B',
+  primaryLight: '#F0E68C',
   
   // Background Colors
-  background: '#F0EDE6',
-  surface: '#FFFFFF',
+  background: '#FFF8F0',
+  surface: '#FFFBF5',
   card: '#FFFFFF',
   
   // Text Colors
@@ -84,10 +84,10 @@ const lightColors = {
   info: '#3B82F6',
   
   // Header Gradient
-  headerGradient: ['#FF9500', '#FFD700'],
+  headerGradient: ['#D4AF37', '#B8860B'],
   
   // Drawer Gradient
-  drawerGradient: ['#D35400', '#FF9500', '#FFD700'],
+  drawerGradient: ['#B8860B', '#D4AF37', '#F0E68C'],
   
   // Shadow
   shadowColor: '#000',
@@ -102,9 +102,9 @@ const lightColors = {
 // Dark Theme Colors
 const darkColors = {
   // Primary Colors
-  primary: '#FF9500',
-  primaryDark: '#D35400',
-  primaryLight: '#FFD700',
+  primary: '#D4AF37',
+  primaryDark: '#B8860B',
+  primaryLight: '#F0E68C',
   
   // Background Colors
   background: '#1A1A1A',
@@ -128,10 +128,10 @@ const darkColors = {
   info: '#3B82F6',
   
   // Header Gradient
-  headerGradient: ['#D35400', '#FF9500'],
+  headerGradient: ['#B8860B', '#D4AF37'],
   
   // Drawer Gradient
-  drawerGradient: ['#1A1A1A', '#2A2A2A', '#333333'],
+  drawerGradient: ['#1A1A1A', '#2A2A2A', '#3A3A3A'],
   
   // Shadow
   shadowColor: '#000',

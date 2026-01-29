@@ -20,6 +20,7 @@ import auth from '@react-native-firebase/auth';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
 import ProfileIcon from '../components/ProfileIcon';
+import StatusBarThemed from '../components/StatusBarThemed';
 
 const { width } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.75;
@@ -186,17 +187,14 @@ const Homescreen = ({navigation}) => {
     navigation.navigate('HowItWorks');
   };
 
-  const handleAboutVedAI = () => {
-    console.log('About VedAI pressed');
+  const handleAbout = () => {
+    console.log('About pressed');
     navigation.navigate('About');
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <StatusBar 
-        barStyle={isDarkMode ? "light-content" : "light-content"} 
-        backgroundColor={colors.primary} 
-      />
+      <StatusBarThemed />
       
       {/* Drawer Overlay */}
       {isDrawerOpen && (
@@ -225,7 +223,7 @@ const Homescreen = ({navigation}) => {
         >
           {/* Drawer Header */}
           <View style={styles.drawerHeader}>
-            <Text style={styles.drawerTitle}>Athravanavira</Text>
+            <Text style={styles.drawerTitle}>Ataravanavira</Text>
             <TouchableOpacity onPress={toggleDrawer} style={styles.closeDrawer}>
               <Icon name="x" size={24} color="white" />
             </TouchableOpacity>
@@ -350,7 +348,7 @@ const Homescreen = ({navigation}) => {
               <Icon name="menu" size={24} color="white" />
             </TouchableOpacity>
             <View style={styles.headerTextContainer}>
-              <Text style={styles.welcomeText}>Athravanavira</Text>
+              <Text style={styles.welcomeText}>Ataravanavira</Text>
             </View>
             <TouchableOpacity 
               style={styles.profileIconButton} 
@@ -435,13 +433,13 @@ const Homescreen = ({navigation}) => {
 
               <TouchableOpacity 
                 style={[styles.quickAccessCard, { backgroundColor: colors.surface }]}
-                onPress={handleAboutVedAI}
+                onPress={handleAbout}
                 activeOpacity={0.7}
               >
                 <View style={styles.quickAccessIconContainer}>
                   <Icon name="info" size={32} color={colors.textSecondary} />
                 </View>
-                <Text style={[styles.quickAccessTitle, { color: colors.text }]}>About Athravanavira</Text>
+                <Text style={[styles.quickAccessTitle, { color: colors.text }]}>About Ataravanavira</Text>
                 <Text style={[styles.quickAccessSubtitle, { color: colors.textSecondary }]}>Our mission</Text>
               </TouchableOpacity>
             </View>

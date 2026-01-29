@@ -107,15 +107,15 @@ const LegalScreen = ({ navigation, route }) => {
     return elements;
   };
 
-  const privacyContent = `# Privacy Policy for VedAI (Atharvanavira)
+  const privacyContent = `# Privacy Policy for Ataravanavira
 
 **Last Updated:** December 16, 2025
 
 ## Introduction
 
-VedAI ("we", "our", or "the app") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our mobile application.
+Ataravanavira ("we", "our", or "the app") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our mobile application.
 
-VedAI is an educational platform focused on Vedic mathematics and ancient Indian wisdom, powered by artificial intelligence.
+Ataravanavira is an educational platform focused on Vedic mathematics and ancient Indian wisdom, powered by artificial intelligence.
 
 ## Information We Collect
 
@@ -167,7 +167,7 @@ We do NOT use your data for:
 
 **Important Notice for AI-Powered Apps:**
 
-VedAI uses Google Gemini AI to process user queries and generate responses. When you submit a question:
+Ataravanavira uses Google Gemini AI to process user queries and generate responses. When you submit a question:
 1. Your query is sent securely to Google's servers
 2. AI processes the request and generates a response
 3. The response is returned to you through our app
@@ -224,18 +224,18 @@ We may share data only in these limited circumstances:
 
 **Contact Us**
 For privacy concerns or requests:
-• Email: vedai.support@gmail.com
+• Email: support@Ataravanavira.app
 • Response time: Within 7 business days
 
 ## Children's Privacy
 
-VedAI is an educational app suitable for students but requires parental guidance for children under 13 years of age.
+Ataravanavira is an educational app suitable for students but requires parental guidance for children under 13 years of age.
 
 We do not knowingly collect personal information from children under 13 without parental consent. If you believe a child has provided us information, please contact us immediately.
 
 ## Cookies & Tracking
 
-VedAI does NOT use:
+Ataravanavira does NOT use:
 • Advertising cookies
 • Cross-site tracking
 • Analytics that identify individuals
@@ -251,7 +251,7 @@ We use minimal session data for app functionality only.
 
 ## International Users
 
-VedAI is hosted on Firebase (Google Cloud Platform) with servers that may be located in various countries. By using the app, you consent to data transfer in accordance with this policy.
+Ataravanavira is hosted on Firebase (Google Cloud Platform) with servers that may be located in various countries. By using the app, you consent to data transfer in accordance with this policy.
 
 ## Changes to This Policy
 
@@ -279,7 +279,7 @@ We believe in radical transparency:
 
 For questions, concerns, or requests regarding this Privacy Policy:
 
-Email: vedai.support@gmail.com
+Email: support@Ataravanavira.app
 Response Time: Within 7 business days
 Subject Line: Use "Privacy Request" for faster processing
 
@@ -291,20 +291,20 @@ Jurisdiction: India
 
 ---
 
-By using VedAI, you acknowledge that you have read and understood this Privacy Policy and agree to its terms.`;
+By using Ataravanavira, you acknowledge that you have read and understood this Privacy Policy and agree to its terms.`;
 
-  const termsContent = `# Terms and Conditions for VedAI (Atharvanavira)
+  const termsContent = `# Terms and Conditions for Ataravanavira
 
 **Last Updated:** December 16, 2025
 
 ## Agreement to Terms
 
-By downloading, installing, or using VedAI ("the app"), you agree to be bound by these Terms and Conditions. If you do not agree, please do not use the app.
+By downloading, installing, or using Ataravanavira ("the app"), you agree to be bound by these Terms and Conditions. If you do not agree, please do not use the app.
 
 ## 1. Nature of the Service
 
 **1.1 Educational Platform**
-VedAI is an educational and informational platform focused on:
+Ataravanavira is an educational and informational platform focused on:
 • Vedic mathematics techniques
 • Ancient Indian mathematical wisdom
 • Sanskrit philosophical concepts
@@ -327,18 +327,18 @@ YOU MUST: Verify critical information independently before relying on it for:
 • Teaching others
 
 **1.3 Not a Professional Substitute**
-VedAI is NOT a replacement for:
+Ataravanavira is NOT a replacement for:
 • Qualified teachers or tutors
 • Academic textbooks or curriculum
 • Professional mathematical advice
 • Certified educational institutions
 
-Use VedAI as a supplementary learning tool, not a primary source.
+Use Ataravanavira as a supplementary learning tool, not a primary source.
 
 ## 2. User Responsibilities
 
 **2.1 Lawful Use**
-You agree to use VedAI only for:
+You agree to use Ataravanavira only for:
 • Personal educational purposes
 • Lawful activities
 • Non-commercial learning
@@ -362,7 +362,7 @@ You agree NOT to:
 ## 3. Intellectual Property Rights
 
 **3.1 App Ownership**
-All rights, title, and interest in VedAI, including app design, source code, branding, and original educational content are owned by the Atharvanavira Project Team and protected by copyright law.
+All rights, title, and interest in Ataravanavira, including app design, source code, branding, and original educational content are owned by the Atharvanavira Project Team and protected by copyright law.
 
 **3.2 User Content**
 • You retain ownership of questions you submit
@@ -372,7 +372,7 @@ All rights, title, and interest in VedAI, including app design, source code, bra
 **3.3 AI-Generated Content**
 • Responses generated by the AI are provided "as-is"
 • You may use AI responses for personal educational purposes
-• Attribution to VedAI is appreciated but not required for personal use
+• Attribution to Ataravanavira is appreciated but not required for personal use
 • Commercial use of AI responses requires written permission
 
 **3.4 Restrictions**
@@ -380,7 +380,7 @@ You may NOT:
 • Copy or redistribute the app
 • Create derivative works
 • Remove copyright notices
-• Use VedAI branding without permission
+• Use Ataravanavira branding without permission
 
 ## 4. Service Availability & Modifications
 
@@ -424,7 +424,7 @@ If you create an account:
 
 **5.2 Account Termination**
 You may delete your account at any time by:
-• Contacting us at vedai.support@gmail.com
+• Contacting us at support@Ataravanavira.app
 • Using in-app account deletion (if available)
 
 Upon termination:
@@ -434,7 +434,7 @@ Upon termination:
 
 ## 6. Disclaimer of Warranties
 
-VedAI IS PROVIDED "AS IS" AND "AS AVAILABLE"
+Ataravanavira IS PROVIDED "AS IS" AND "AS AVAILABLE"
 
 We make NO WARRANTIES, express or implied, including:
 • Accuracy of AI-generated content
@@ -466,7 +466,7 @@ USE AT YOUR OWN RISK: You accept full responsibility for educational decisions b
 ## 8. Age Requirements
 
 **8.1 General Use**
-VedAI is suitable for users of all ages interested in mathematics education.
+Ataravanavira is suitable for users of all ages interested in mathematics education.
 
 **8.2 Parental Guidance**
 For users under 13 years old:
@@ -479,18 +479,18 @@ We do not actively verify user ages. Parents must ensure appropriate use.
 
 ## 9. Third-Party Services
 
-VedAI integrates with:
+Ataravanavira integrates with:
 • Google Gemini AI: For response generation
 • Firebase: For authentication and data storage
 • React Native: For app framework
 
-These services have their own terms and privacy policies. By using VedAI, you also agree to comply with third-party terms.
+These services have their own terms and privacy policies. By using Ataravanavira, you also agree to comply with third-party terms.
 
 Disclaimer: We are not responsible for third-party service changes, outages, or policy modifications.
 
 ## 10. Data Usage & Privacy
 
-Your use of VedAI is also governed by our Privacy Policy.
+Your use of Ataravanavira is also governed by our Privacy Policy.
 
 Key points:
 • We collect minimal personal data
@@ -504,7 +504,7 @@ For full details, see our Privacy Policy.
 
 We welcome feedback! If you provide suggestions or ideas:
 • You grant us the right to use them without compensation
-• Feedback helps improve VedAI for everyone
+• Feedback helps improve Ataravanavira for everyone
 • We may implement suggestions at our discretion
 
 ## 12. Dispute Resolution
@@ -517,7 +517,7 @@ Any disputes shall be resolved in the courts of [Your City/State, India].
 
 **12.3 Informal Resolution**
 Before legal action, we encourage:
-• Contact us at vedai.support@gmail.com
+• Contact us at support@Ataravanavira.app
 • Attempt good-faith resolution
 • Allow 30 days for response
 

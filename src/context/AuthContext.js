@@ -34,11 +34,11 @@ export const AuthProvider = ({ children }) => {
           setIsGuest(false);
         } else {
           // Check for existing guest session
-          let storedGuestId = await AsyncStorage.getItem('@vedai:guestId');
+          let storedGuestId = await AsyncStorage.getItem('@Ataravanavira:guestId');
           if (!storedGuestId) {
             // Create new guest ID
             storedGuestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-            await AsyncStorage.setItem('@vedai:guestId', storedGuestId);
+            await AsyncStorage.setItem('@Ataravanavira:guestId', storedGuestId);
           }
           setGuestId(storedGuestId);
           setIsGuest(true);
@@ -66,10 +66,10 @@ export const AuthProvider = ({ children }) => {
       } else {
         setUser(null);
         // Set up guest mode
-        let storedGuestId = await AsyncStorage.getItem('@vedai:guestId');
+        let storedGuestId = await AsyncStorage.getItem('@Ataravanavira:guestId');
         if (!storedGuestId) {
           storedGuestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          await AsyncStorage.setItem('@vedai:guestId', storedGuestId);
+          await AsyncStorage.setItem('@Ataravanavira:guestId', storedGuestId);
         }
         setGuestId(storedGuestId);
         setIsGuest(true);
@@ -85,7 +85,7 @@ export const AuthProvider = ({ children }) => {
       await auth().signOut();
       // Create new guest ID after logout
       const newGuestId = `guest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await AsyncStorage.setItem('@vedai:guestId', newGuestId);
+      await AsyncStorage.setItem('@Ataravanavira:guestId', newGuestId);
       setGuestId(newGuestId);
       setIsGuest(true);
     } catch (error) {

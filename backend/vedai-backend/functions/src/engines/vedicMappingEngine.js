@@ -4,8 +4,9 @@
  * This is the patent-worthy component that enables cross-domain knowledge inference
  */
 
-const admin = require("firebase-admin");
+const { admin } = require('../config/firebase');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const config = require('../config/env');
 
 /**
  * Structured Knowledge Base: 20+ Core Vedic Sutras

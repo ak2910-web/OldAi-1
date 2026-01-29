@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   SafeAreaView,
-  StatusBar,
   KeyboardAvoidingView,
   Platform,
   Alert,
@@ -16,8 +15,17 @@ import LinearGradient from 'react-native-linear-gradient';
 import Icon from 'react-native-vector-icons/Feather';
 import auth from '@react-native-firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { useTheme } from '../context/ThemeContext';
+import StatusBarThemed from '../components/StatusBarThemed';
+
+// Configure Google Sign-In at module level
+GoogleSignin.configure({
+  webClientId: '215577452779-s4ljb43bjj3430ebh9iepic9evf91h14.apps.googleusercontent.com',
+  offlineAccess: true,
+});
 
 const Login = ({ navigation }) => {
+  const { colors, isDarkMode } = useTheme();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,8 +38,8 @@ const Login = ({ navigation }) => {
     const checkSignInStatus = async () => {
       try {
         // Check if user is signed in with Google
-        const isSignedIn = await GoogleSignin.isSignedIn();
-        if (isSignedIn) {
+        const currentUser = await GoogleSignin.getCurrentUser();
+        if (currentUser) {
           await GoogleSignin.signOut();
         }
       } catch (error) {
@@ -114,33 +122,6 @@ const Login = ({ navigation }) => {
     navigation.navigate('Signup');
   };
 
-  // Configure Google Signin
-  React.useEffect(() => {
-    const configureGoogleSignIn = async () => {
-      try {
-        console.log('Configuring Google Sign-In...');
-        // Web client ID from google-services.json (OAuth client type 3)
-        GoogleSignin.configure({
-          webClientId: '215577452779-s4ljb43bjj3430ebh9iepic9evf91h14.apps.googleusercontent.com',
-          offlineAccess: true,
-        });
-        console.log('Google Sign-In configured successfully');
-        
-        // Check if Play Services is available
-        const hasPlayServices = await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-        console.log('Play Services available:', hasPlayServices);
-      } catch (error) {
-        console.error('Error configuring Google Sign-In:', error);
-        Alert.alert(
-          'Configuration Error',
-          'Google Sign-In could not be configured. Please check your setup.\n\nError: ' + (error?.message || 'Unknown error')
-        );
-      }
-    };
-    
-    configureGoogleSignIn();
-  }, []);
-
   const handleGoogleSignIn = async () => {
     try {
       setLoading(true);
@@ -151,10 +132,10 @@ const Login = ({ navigation }) => {
       console.log('Step 2: Play Services available');
       
       // Make sure we're signed out before attempting sign in
-      const isSignedIn = await GoogleSignin.isSignedIn();
-      console.log('Step 3: Current sign-in status:', isSignedIn);
+      const currentUser = await GoogleSignin.getCurrentUser();
+      console.log('Step 3: Current sign-in status:', currentUser ? 'Signed In' : 'Not Signed In');
       
-      if (isSignedIn) {
+      if (currentUser) {
         console.log('Step 4: Signing out...');
         await GoogleSignin.signOut();
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -166,12 +147,16 @@ const Login = ({ navigation }) => {
       const signInResult = await GoogleSignin.signIn();
       console.log('Step 7: Google Sign In result:', JSON.stringify(signInResult, null, 2));
       
-      const { idToken, user } = signInResult;
+      // In v16.0.0+, the structure is { type: 'success', data: { idToken, user } }
+      const idToken = signInResult?.data?.idToken || signInResult?.idToken;
+      const user = signInResult?.data?.user || signInResult?.user;
+      
       console.log('Step 8: ID Token exists:', !!idToken);
       console.log('Step 9: User email:', user?.email);
       
       if (!idToken) {
-        throw new Error('No ID token received from Google Sign-In');
+        console.error('Sign-in result structure:', signInResult);
+        throw new Error('No ID token received from Google Sign-In. Please ensure SHA-1 certificate fingerprint is registered in Firebase Console.');
       }
 
       // Create a Google credential with the token
@@ -260,7 +245,7 @@ const Login = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF9500" />
+      <StatusBarThemed />
       <LinearGradient
         colors={['#FF9500', '#FFD700']}
         style={styles.header}

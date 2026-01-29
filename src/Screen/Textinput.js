@@ -20,6 +20,7 @@ import { sanitizeForFirestore } from '../utils/textParser';
 import FooterNavigation from '../components/FooterNavigation';
 import { useTheme } from '../context/ThemeContext.js';
 import ProfileIcon from '../components/ProfileIcon';
+import StatusBarThemed from '../components/StatusBarThemed';
 
 const Textinput = ({navigation, colors, isDarkMode}) => {
   const themedStyles = styles(colors);
@@ -186,6 +187,7 @@ const Textinput = ({navigation, colors, isDarkMode}) => {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBarThemed />
       {/* Header */}
       <View style={[themedStyles.header, { backgroundColor: colors.surface }]}> 
         <TouchableOpacity onPress={() => navigation.goBack()} style={themedStyles.headerButton}>
@@ -217,7 +219,7 @@ const Textinput = ({navigation, colors, isDarkMode}) => {
         <View style={themedStyles.inputTypeContainer}>
           <View style={[themedStyles.inputTypeButton, themedStyles.textInputButton, themedStyles.selectedInputType]}>
             <Ionicons name="chatbubble-outline" size={20} color={'#fff'} />
-            <Text style={[themedStyles.inputTypeText, themedStyles.selectedInputTypeText]}>Athravanavira</Text>
+            <Text style={[themedStyles.inputTypeText, themedStyles.selectedInputTypeText]}>Ataravanavira</Text>
           </View>
         </View>
         <View style={themedStyles.separator} />

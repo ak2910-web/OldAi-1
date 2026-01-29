@@ -14,6 +14,8 @@ import Icon from 'react-native-vector-icons/Feather';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import { useTheme } from '../context/ThemeContext';
 import FooterNavigation from '../components/FooterNavigation';
+import StatusBarThemed from '../components/StatusBarThemed';
+import AppHeader from '../components/AppHeader';
 
 const { width } = Dimensions.get('window');
 
@@ -82,18 +84,11 @@ const About = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header with Back Button */}
-      <View style={[styles.header, { backgroundColor: colors.surface }]}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Icon name="arrow-left" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>About Athravanavira</Text>
-        <View style={styles.placeholder} />
-      </View>
+      <StatusBarThemed />
+      <AppHeader 
+        title="About Ataravanavira" 
+        onBack={() => navigation.goBack()}
+      />
 
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
@@ -124,7 +119,7 @@ const About = ({ navigation }) => {
                 <MaterialIcons name="calculate" size={48} color="#fff" />
               </LinearGradient>
             </View>
-            <Text style={[styles.heroTitle, { color: colors.text }]}>Athravanavira</Text>
+            <Text style={[styles.heroTitle, { color: colors.text }]}>Ataravanavira</Text>
             <Text style={[styles.heroSubtitle, { color: colors.textSecondary }]}>
               Your AI-Powered Vedic Mathematics Companion
             </Text>
@@ -143,7 +138,7 @@ const About = ({ navigation }) => {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Our Mission</Text>
           </View>
           <Text style={[styles.paragraph, { color: colors.textSecondary }]}>
-            Athravanavira bridges ancient Vedic mathematical wisdom with cutting-edge AI technology. 
+            Ataravanavira bridges ancient Vedic mathematical wisdom with cutting-edge AI technology. 
             We make powerful mental calculation techniques accessible to everyone, helping students 
             and enthusiasts master mathematics through time-tested methods.
           </Text>
@@ -254,10 +249,10 @@ const About = ({ navigation }) => {
         {/* Version Info */}
         <View style={styles.footer}>
           <Text style={[styles.versionText, { color: colors.textSecondary }]}>
-            Athravanavira Version 1.0.0
+            Ataravanavira Version 1.0.0
           </Text>
           <Text style={[styles.copyrightText, { color: colors.textSecondary }]}>
-            © 2024 Athravanavira. All rights reserved.
+            © 2024 Ataravanavira. All rights reserved.
           </Text>
         </View>
       </ScrollView>
